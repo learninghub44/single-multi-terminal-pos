@@ -1,0 +1,136 @@
+/* Receipt Print Styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .receipt,
+  .receipt * {
+    visibility: visible;
+  }
+
+  .receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    padding: 2mm;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    background: white;
+    color: black;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 2mm;
+  }
+}
+
+.receipt-58mm { width: 58mm; }
+.receipt-58mm .receipt-item { font-size: 10px; }
+.receipt-80mm { width: 80mm; }
+
+.receipt {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 2mm;
+}
+
+.receipt-header {
+  text-align: center;
+  margin-bottom: 3mm;
+}
+
+.receipt-business-name {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.receipt-business-info {
+  font-size: 10px;
+  color: #666;
+}
+
+.receipt-divider {
+  border-top: 1px dashed #000;
+  margin: 2mm 0;
+}
+
+.receipt-info { margin-bottom: 2mm; }
+
+.receipt-info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+}
+
+.receipt-items { margin: 2mm 0; }
+
+.receipt-item {
+  display: flex;
+  justify-content: space-between;
+  margin: 1mm 0;
+  font-size: 11px;
+}
+
+.receipt-item-name { flex: 1; }
+.receipt-item-qty { width: 20px; text-align: center; }
+.receipt-item-price { width: 60px; text-align: right; }
+
+.receipt-totals { margin: 2mm 0; }
+
+.receipt-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.receipt-total-row.grand-total {
+  font-size: 14px;
+  font-weight: bold;
+  border-top: 1px dashed #000;
+  padding-top: 1mm;
+  margin-top: 1mm;
+}
+
+.receipt-payment { margin: 2mm 0; }
+.receipt-payment-method { font-weight: bold; text-transform: uppercase; }
+
+.receipt-footer {
+  text-align: center;
+  margin-top: 3mm;
+  font-size: 10px;
+}
+
+.receipt-qr { text-align: center; margin-top: 3mm; }
+.receipt-qr img { width: 30mm; height: 30mm; }
+
+.print-receipt-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 20px;
+  background-color: #111111;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.print-receipt-btn:hover {
+  background-color: #2A2A2A;
+}
+
+[data-theme="dark"] .print-receipt-btn {
+  background-color: #FFFFFF;
+  color: #0B0B0B;
+}
+
+[data-theme="dark"] .print-receipt-btn:hover {
+  background-color: #E5E5E5;
+}

@@ -1,0 +1,21 @@
+name = "pos-backend"
+main = "src/index.ts"
+compatibility_date = "2024-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables (set via wrangler secret put or dashboard)
+# SUPABASE_URL
+# SUPABASE_ANON_KEY
+# SUPABASE_SERVICE_ROLE_KEY
+# MPESA_CONSUMER_KEY
+# MPESA_CONSUMER_SECRET
+# MPESA_PASSKEY
+# MPESA_SHORTCODE
+# MPESA_CALLBACK_URL
+# PAYHERO_API_KEY
+# PAYHERO_API_URL
+# PAYHERO_CALLBACK_URL
+
+# Static assets
+[site]
+bucket = "../frontend"
