@@ -3,6 +3,15 @@ main = "src/index.ts"
 compatibility_date = "2024-08-01"
 compatibility_flags = ["nodejs_compat"]
 
+# CRITICAL when deploying via Cloudflare's GitHub integration (Workers
+# Builds): without this, every push-triggered deploy wipes out whatever
+# secrets/vars were set through the dashboard, and the Worker starts
+# throwing "X is required" errors again even though you just set X in the
+# dashboard five minutes ago. This tells Wrangler to leave dashboard-set
+# values alone on deploy instead of resetting them.
+# https://developers.cloudflare.com/workers/wrangler/configuration/
+keep_vars = true
+
 # Static assets - modern Workers Assets binding. Cloudflare serves anything
 # under ../frontend directly (including /sw.js, /css/*, /js/*); only requests
 # that don't match a file fall through to the Worker's fetch handler below.
