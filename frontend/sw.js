@@ -33,6 +33,8 @@ const APP_SHELL = [
   '/js/pages/users.js',
   '/js/pages/terminals.js',
   '/js/pages/settings.js',
+  '/js/pages/setup.js',
+  '/js/pages/accept-invite.js',
   '/js/app.js'
 ];
 

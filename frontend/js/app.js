@@ -1,5 +1,5 @@
 // Main App
-(function() {
+(async function() {
   'use strict';
 
   // Initialize authentication
@@ -36,6 +36,24 @@
     Auth.logout();
     window.location.hash = '#/login';
   });
+
+  // First-run check: if no user account exists yet anywhere, send whoever
+  // opens the app to the admin-creation screen instead of a login form for
+  // an account that can't possibly exist yet. Skipped if they're already
+  // logged in, or if they arrived via an invite link (that link only makes
+  // sense once an owner already exists, so needs_setup would be false
+  // anyway - but checking first avoids a pointless network call clobbering
+  // the hash before AcceptInvitePage gets to read its token).
+  if (!Auth.isLoggedIn() && !window.location.hash.startsWith('#/accept-invite')) {
+    try {
+      const response = await Api.get(API.AUTH.SETUP_STATUS);
+      if (response.success && response.data.needs_setup) {
+        window.location.hash = '#/setup';
+      }
+    } catch (error) {
+      console.error('Setup status check failed:', error);
+    }
+  }
 
   // Initialize router
   Router.init();

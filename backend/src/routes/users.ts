@@ -2,10 +2,98 @@ import { Env, User } from '../types';
 import { authenticate, authorize, success_response, error_response } from '../middleware/auth';
 import { getSupabaseService } from '../services/supabase';
 
+function generateToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export async function handleUserRoutes(request: Request, env: Env, path: string): Promise<Response> {
   const user = await authenticate(request, env);
   authorize(user, ['owner', 'manager']);
   const supabase = getSupabaseService(env);
+
+  // GET /api/users/invites - list invites (checked before the generic user
+  // routes below since 'invites' would otherwise never be distinguished
+  // from a user id).
+  if (path === 'invites' && request.method === 'GET') {
+    const { data, error } = await supabase
+      .from('invites')
+      .select('*, created_by_user:created_by(full_name), used_by_user:used_by(full_name)')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return error_response('DATABASE_ERROR', error.message);
+    }
+
+    return success_response({ invites: data });
+  }
+
+  // POST /api/users/invites - generate an invite link. Managers can only
+  // invite cashiers (mirrors the same owner-only restriction on directly
+  // creating an owner/manager account via POST /api/users below).
+  if (path === 'invites' && request.method === 'POST') {
+    const body = await request.json() as { role: 'owner' | 'manager' | 'cashier'; email?: string };
+    const { role, email } = body;
+
+    const validRoles = ['owner', 'manager', 'cashier'];
+    if (!role || !validRoles.includes(role)) {
+      return error_response('VALIDATION_ERROR', 'A valid role is required');
+    }
+    if (user.role === 'manager' && role !== 'cashier') {
+      return error_response('FORBIDDEN', 'Managers can only invite cashiers', 403);
+    }
+
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+
+    const { data: invite, error } = await supabase
+      .from('invites')
+      .insert({
+        token,
+        email: email || null,
+        role,
+        created_by: user.id,
+        expires_at: expiresAt
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return error_response('DATABASE_ERROR', error.message);
+    }
+
+    await supabase.from('audit_logs').insert({
+      user_id: user.id,
+      action: 'INVITE_CREATED',
+      entity: 'invite',
+      entity_id: invite.id,
+      metadata: { role, email: email || null }
+    });
+
+    // The frontend builds the actual shareable URL (it knows its own
+    // origin); the backend just hands back the token and metadata.
+    return success_response({ invite }, 201);
+  }
+
+  // DELETE /api/users/invites/:id - revoke an invite. Checked before the
+  // generic DELETE /:id user-deletion handler below, for the same reason
+  // as the GET/POST invites checks above.
+  if (path.startsWith('invites/') && request.method === 'DELETE') {
+    const inviteId = path.slice('invites/'.length);
+
+    const { error } = await supabase
+      .from('invites')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', inviteId)
+      .is('used_at', null);
+
+    if (error) {
+      return error_response('DATABASE_ERROR', error.message);
+    }
+
+    return success_response({ message: 'Invite revoked' });
+  }
 
   // GET /api/users
   if (path === '' && request.method === 'GET') {

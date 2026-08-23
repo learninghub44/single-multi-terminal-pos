@@ -1,12 +1,18 @@
 // Users Page
 const UsersPage = {
   users: [],
+  invites: [],
 
   async render(container) {
+    const canManage = Auth.user?.role === 'owner' || Auth.user?.role === 'manager';
+
     container.innerHTML = `
       <div class="page-header">
         <h1 class="page-title">Users</h1>
-        ${Auth.user?.role === 'owner' ? '<button class="btn btn-primary" onclick="UsersPage.showAddModal()">+ Add User</button>' : ''}
+        <div class="page-header-actions">
+          ${canManage ? '<button class="btn btn-secondary" onclick="UsersPage.showInviteModal()">+ Invite Staff</button>' : ''}
+          ${Auth.user?.role === 'owner' ? '<button class="btn btn-primary" onclick="UsersPage.showAddModal()">+ Add User</button>' : ''}
+        </div>
       </div>
 
       <div class="card">
@@ -27,6 +33,31 @@ const UsersPage = {
           </table>
         </div>
       </div>
+
+      ${canManage ? `
+        <div class="card mt-lg">
+          <div class="card-header">
+            <h3 class="card-title">Pending Invites</h3>
+          </div>
+          <div class="table-container">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Role</th>
+                  <th>Email</th>
+                  <th>Invited By</th>
+                  <th>Status</th>
+                  <th>Expires</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="invites-table-body">
+                <tr><td colspan="6" class="text-center"><div class="spinner"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ` : ''}
     `;
 
     await this.loadData();
@@ -41,6 +72,149 @@ const UsersPage = {
       }
     } catch (error) {
       Toast.show('Failed to load users', 'error');
+    }
+
+    if (Auth.user?.role === 'owner' || Auth.user?.role === 'manager') {
+      await this.loadInvites();
+    }
+  },
+
+  async loadInvites() {
+    try {
+      const response = await Api.get(API.INVITES);
+      if (response.success) {
+        this.invites = response.data.invites;
+        this.renderInvitesTable();
+      }
+    } catch (error) {
+      console.error('Failed to load invites:', error);
+    }
+  },
+
+  renderInvitesTable() {
+    const tbody = document.getElementById('invites-table-body');
+    if (!tbody) return;
+
+    if (!this.invites.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No invites yet</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = this.invites.map(inv => {
+      const status = this.inviteStatus(inv);
+      const link = this.buildInviteLink(inv.token);
+      return `
+        <tr>
+          <td><span class="badge ${inv.role === 'owner' ? 'badge-danger' : inv.role === 'manager' ? 'badge-warning' : 'badge-info'}">${Utils.capitalize(inv.role)}</span></td>
+          <td>${inv.email ? Utils.escapeHtml(inv.email) : '<span class="text-muted">Any</span>'}</td>
+          <td>${inv.created_by_user?.full_name ? Utils.escapeHtml(inv.created_by_user.full_name) : '-'}</td>
+          <td><span class="badge ${status.badgeClass}">${status.label}</span></td>
+          <td>${Utils.formatDate(inv.expires_at)}</td>
+          <td>
+            ${status.label === 'Pending' ? `
+              <button class="btn btn-ghost btn-sm" onclick="UsersPage.copyInviteLink('${link}')">Copy Link</button>
+              <button class="btn btn-ghost btn-sm text-danger" onclick="UsersPage.revokeInvite('${inv.id}')">Revoke</button>
+            ` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  inviteStatus(inv) {
+    if (inv.used_at) return { label: 'Used', badgeClass: 'badge-success' };
+    if (inv.revoked_at) return { label: 'Revoked', badgeClass: 'badge-danger' };
+    if (new Date(inv.expires_at) < new Date()) return { label: 'Expired', badgeClass: 'badge-warning' };
+    return { label: 'Pending', badgeClass: 'badge-info' };
+  },
+
+  buildInviteLink(token) {
+    return `${window.location.origin}/#/accept-invite?token=${token}`;
+  },
+
+  showInviteModal() {
+    const isOwner = Auth.user?.role === 'owner';
+    const content = `
+      <form id="invite-form">
+        <div class="form-group">
+          <label for="invite-role">Role *</label>
+          <select id="invite-role" class="form-select" required>
+            <option value="cashier">Cashier</option>
+            ${isOwner ? '<option value="manager">Manager</option>' : ''}
+            ${isOwner ? '<option value="owner">Owner</option>' : ''}
+          </select>
+          ${!isOwner ? '<div class="form-hint">Managers can only invite cashiers.</div>' : ''}
+        </div>
+        <div class="form-group">
+          <label for="invite-email-field">Email (optional)</label>
+          <input type="email" id="invite-email-field" class="form-input" placeholder="Leave blank to let anyone with the link sign up">
+          <div class="form-hint">If set, only that email address can accept the invite.</div>
+        </div>
+      </form>
+    `;
+
+    Modal.show('Invite Staff Member', content, {
+      footer: `
+        <button class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-primary" onclick="UsersPage.createInvite()">Generate Link</button>
+      `
+    });
+  },
+
+  async createInvite() {
+    const role = document.getElementById('invite-role').value;
+    const email = document.getElementById('invite-email-field').value;
+
+    try {
+      const response = await Api.post(API.INVITES, { role, email: email || undefined });
+      if (response.success) {
+        const link = this.buildInviteLink(response.data.invite.token);
+        Modal.close();
+        this.showInviteLinkModal(link);
+        this.loadInvites();
+      }
+    } catch (error) {
+      Toast.show(error.message || 'Failed to create invite', 'error');
+    }
+  },
+
+  showInviteLinkModal(link) {
+    const content = `
+      <p class="mb-md">Send this link to the new staff member. It works once and expires in 7 days.</p>
+      <div class="form-group">
+        <input type="text" id="invite-link-output" class="form-input" value="${Utils.escapeHtml(link)}" readonly onclick="this.select()">
+      </div>
+    `;
+
+    Modal.show('Invite Link Ready', content, {
+      footer: `
+        <button class="btn btn-secondary" onclick="Modal.close()">Close</button>
+        <button class="btn btn-primary" onclick="UsersPage.copyInviteLink('${link}')">Copy Link</button>
+      `
+    });
+  },
+
+  copyInviteLink(link) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link)
+        .then(() => Toast.show('Invite link copied', 'success'))
+        .catch(() => Toast.show('Could not copy - select and copy manually', 'error'));
+    } else {
+      Toast.show('Clipboard not available - select and copy manually', 'warning');
+    }
+  },
+
+  async revokeInvite(inviteId) {
+    if (!confirm('Revoke this invite? The link will stop working.')) return;
+
+    try {
+      const response = await Api.delete(`${API.INVITES}/${inviteId}`);
+      if (response.success) {
+        Toast.show('Invite revoked', 'success');
+        this.loadInvites();
+      }
+    } catch (error) {
+      Toast.show(error.message || 'Failed to revoke invite', 'error');
     }
   },
 

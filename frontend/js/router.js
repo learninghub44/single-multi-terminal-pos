@@ -42,17 +42,27 @@ const Router = {
   },
 
   handleRoute() {
-    const hash = window.location.hash.slice(1) || '/dashboard';
-    const page = hash.split('/')[1] || 'dashboard';
+    const rawHash = window.location.hash.slice(1) || '/dashboard';
+    // Split off the query string before parsing the page name - a hash like
+    // "#/accept-invite?token=abc" would otherwise leave "accept-invite?token=abc"
+    // as the page name (split('/') doesn't know about '?').
+    const [hashPath, hashQuery] = rawHash.split('?');
+    const page = hashPath.split('/')[1] || 'dashboard';
+    this.currentQuery = new URLSearchParams(hashQuery || '');
+
+    // Pages reachable without being logged in. 'setup' (first-run admin
+    // creation) and 'accept-invite' (staff claiming an invite link) both
+    // need to work for someone who has no account yet at all.
+    const publicPages = ['login', 'setup', 'accept-invite'];
 
     // Check authentication
-    if (!Auth.isLoggedIn() && page !== 'login') {
+    if (!Auth.isLoggedIn() && !publicPages.includes(page)) {
       window.location.hash = '#/login';
       return;
     }
 
     // Check permissions
-    if (Auth.isLoggedIn() && !Auth.hasPermission(page)) {
+    if (Auth.isLoggedIn() && !publicPages.includes(page) && !Auth.hasPermission(page)) {
       Toast.show('Access denied', 'error');
       window.location.hash = '#/dashboard';
       return;
@@ -65,13 +75,29 @@ const Router = {
 
     // Show/hide elements based on auth
     const loginPage = document.getElementById('login-page');
+    const setupPage = document.getElementById('setup-page');
+    const acceptInvitePage = document.getElementById('accept-invite-page');
     const mainApp = document.getElementById('main-app');
 
-    if (page === 'login' || !Auth.isLoggedIn()) {
-      loginPage.classList.remove('hidden');
+    if (publicPages.includes(page)) {
+      loginPage.classList.toggle('hidden', page !== 'login');
+      setupPage.classList.toggle('hidden', page !== 'setup');
+      acceptInvitePage.classList.toggle('hidden', page !== 'accept-invite');
       mainApp.classList.add('hidden');
+
+      if (page === 'setup' && window.SetupPage) {
+        window.SetupPage.render();
+      }
+      if (page === 'accept-invite' && window.AcceptInvitePage) {
+        window.AcceptInvitePage.render(this.currentQuery.get('token'));
+      }
+
+      this.currentPage = page;
+      return;
     } else {
       loginPage.classList.add('hidden');
+      setupPage.classList.add('hidden');
+      acceptInvitePage.classList.add('hidden');
       mainApp.classList.remove('hidden');
 
       // Update topbar title

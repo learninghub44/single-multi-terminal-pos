@@ -151,6 +151,19 @@ export interface BusinessSettings {
   updated_at: string;
 }
 
+export interface Invite {
+  id: string;
+  token: string;
+  email: string | null;
+  role: 'owner' | 'manager' | 'cashier';
+  created_by: string | null;
+  expires_at: string;
+  used_at: string | null;
+  used_by: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
 export interface AuditLog {
   id: string;
   user_id: string;

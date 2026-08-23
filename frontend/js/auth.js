@@ -48,6 +48,16 @@ const Auth = {
     throw new Error(response.error?.message || 'Login failed');
   },
 
+  // Used by setup/accept-invite flows, which create + sign in a user via
+  // their own dedicated endpoints rather than /auth/login - same storage
+  // side effect as login(), factored out so both places don't duplicate it.
+  setSession(user, session) {
+    this.user = user;
+    this.session = session;
+    localStorage.setItem('pos_user', JSON.stringify(user));
+    localStorage.setItem('pos_session', JSON.stringify(session));
+  },
+
   logout() {
     this.user = null;
     this.session = null;

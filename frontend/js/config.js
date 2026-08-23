@@ -18,7 +18,11 @@ const API = {
     LOGIN: `${CONFIG.API_BASE}/auth/login`,
     LOGOUT: `${CONFIG.API_BASE}/auth/logout`,
     REFRESH: `${CONFIG.API_BASE}/auth/refresh`,
-    USER: `${CONFIG.API_BASE}/auth/user`
+    USER: `${CONFIG.API_BASE}/auth/user`,
+    SETUP_STATUS: `${CONFIG.API_BASE}/auth/setup-status`,
+    SETUP: `${CONFIG.API_BASE}/auth/setup`,
+    INVITE_INFO: (token) => `${CONFIG.API_BASE}/auth/invite/${token}`,
+    ACCEPT_INVITE: `${CONFIG.API_BASE}/auth/accept-invite`
   },
   PRODUCTS: `${CONFIG.API_BASE}/products`,
   CATEGORIES: `${CONFIG.API_BASE}/categories`,
@@ -47,6 +51,7 @@ const API = {
   },
   SETTINGS: `${CONFIG.API_BASE}/settings`,
   USERS: `${CONFIG.API_BASE}/users`,
+  INVITES: `${CONFIG.API_BASE}/users/invites`,
   TERMINALS: `${CONFIG.API_BASE}/terminals`,
   CASH_SESSIONS: `${CONFIG.API_BASE}/cash-sessions`,
   RECEIPTS: (number) => `${CONFIG.API_BASE}/receipts/${number}`

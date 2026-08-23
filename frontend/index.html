@@ -50,6 +50,74 @@
       </div>
     </div>
 
+    <!-- First-Run Admin Setup Page -->
+    <div id="setup-page" class="page hidden">
+      <div class="login-container">
+        <div class="login-card">
+          <div class="login-header">
+            <div class="brand-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <h1>Welcome</h1>
+            <p>Create the admin account to get started</p>
+          </div>
+          <form id="setup-form">
+            <div class="form-group">
+              <label for="setup-name">Full Name</label>
+              <input type="text" id="setup-name" required autocomplete="name">
+            </div>
+            <div class="form-group">
+              <label for="setup-email">Email</label>
+              <input type="email" id="setup-email" required autocomplete="email">
+            </div>
+            <div class="form-group">
+              <label for="setup-password">Password</label>
+              <input type="password" id="setup-password" required minlength="6" autocomplete="new-password">
+            </div>
+            <div id="setup-error" class="error-message hidden"></div>
+            <button type="submit" class="btn btn-primary btn-full btn-lg">
+              <span class="btn-text">Create Admin Account</span>
+              <span class="btn-loading hidden">Creating...</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Accept Staff Invite Page -->
+    <div id="accept-invite-page" class="page hidden">
+      <div class="login-container">
+        <div class="login-card">
+          <div class="login-header">
+            <div class="brand-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <h1>You've been invited</h1>
+            <p id="invite-context">Checking your invite...</p>
+          </div>
+          <form id="accept-invite-form" class="hidden">
+            <div class="form-group">
+              <label for="invite-name">Full Name</label>
+              <input type="text" id="invite-name" required autocomplete="name">
+            </div>
+            <div class="form-group">
+              <label for="invite-email">Email</label>
+              <input type="email" id="invite-email" required autocomplete="email">
+            </div>
+            <div class="form-group">
+              <label for="invite-password">Password</label>
+              <input type="password" id="invite-password" required minlength="6" autocomplete="new-password">
+            </div>
+            <div id="invite-error" class="error-message hidden"></div>
+            <button type="submit" class="btn btn-primary btn-full btn-lg">
+              <span class="btn-text">Create My Account</span>
+              <span class="btn-loading hidden">Creating...</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <!-- Main App -->
     <div id="main-app" class="hidden">
       <!-- Sidebar -->
@@ -202,6 +270,8 @@
   <script src="/js/pages/users.js"></script>
   <script src="/js/pages/terminals.js"></script>
   <script src="/js/pages/settings.js"></script>
+  <script src="/js/pages/setup.js"></script>
+  <script src="/js/pages/accept-invite.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>
