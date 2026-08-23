@@ -4,7 +4,11 @@
   min-height: 100vh;
 }
 
-/* ─── Login ─── */
+/* ─── Login / Setup / Accept-Invite (shared "ticket" treatment) ───
+   Signature: the card reads as a torn receipt - square top, a scalloped
+   perforated edge at the bottom (where a real receipt tears off), printed
+   in the same monospace a receipt printer would use for the eyebrow.
+   Everything else stays quiet and within the app's existing tokens. */
 .login-container {
   display: flex;
   align-items: center;
@@ -12,6 +16,9 @@
   min-height: 100vh;
   padding: var(--space-lg);
   background-color: var(--bg);
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-position: center;
 }
 
 .login-card {
@@ -19,13 +26,47 @@
   max-width: 380px;
   background-color: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-2xl);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  padding: var(--space-2xl) var(--space-2xl) calc(var(--space-2xl) + 10px);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  animation: ticket-rise 0.4s var(--ease-out, ease-out) both;
+  /* Scalloped tear-off edge along the bottom - a row of half-circle
+     "punches" cut out of the card, like perforation on a receipt stub. */
+  -webkit-mask-image: radial-gradient(circle at 8px 8px, transparent 8px, black 8.5px);
+  mask-image: radial-gradient(circle at 8px 8px, transparent 8px, black 8.5px);
+  -webkit-mask-size: 16px 16px;
+  mask-size: 16px 16px;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-position: bottom left;
+  mask-position: bottom left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card {
+    animation: none;
+  }
+}
+
+@keyframes ticket-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .login-header {
   text-align: center;
   margin-bottom: var(--space-2xl);
+}
+
+.login-eyebrow {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-md);
 }
 
 .login-header .brand-mark {
@@ -41,8 +82,8 @@
 }
 
 .login-header .brand-mark svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
 }
 
 .login-header h1 {

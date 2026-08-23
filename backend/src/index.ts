@@ -16,6 +16,19 @@ import { handleReceiptRoutes } from './routes/receipts';
 import { handleTerminalRoutes } from './routes/terminals';
 import { handleCashSessionRoutes } from './routes/cash-sessions';
 
+// Every /api/ route eventually needs Supabase - without these, the first
+// call to createClient() throws an opaque library error deep inside a
+// service file ("supabaseUrl is required") that gets caught by the generic
+// catch-all below and reported as an unhelpful 500. Checking up front turns
+// that into a specific, actionable message naming exactly which setting is
+// missing, so a misconfigured deployment is diagnosable from the response
+// itself instead of requiring a trip into Cloudflare's Logs tab.
+const REQUIRED_ENV_VARS = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'] as const;
+
+function getMissingEnvVars(env: Env): string[] {
+  return REQUIRED_ENV_VARS.filter((key) => !env[key] || String(env[key]).trim() === '');
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === 'OPTIONS') {
@@ -28,6 +41,17 @@ export default {
 
       // API routes
       if (path.startsWith('/api/')) {
+        const missingVars = getMissingEnvVars(env);
+        if (missingVars.length > 0) {
+          return error_response(
+            'SERVER_MISCONFIGURED',
+            `Server is missing required configuration: ${missingVars.join(', ')}. ` +
+            `Set these in your deployment's environment variables/secrets (Cloudflare dashboard → Worker → Settings → Variables and Secrets) and redeploy. ` +
+            `If you're deploying via GitHub, make sure wrangler.toml has keep_vars = true, or the next deploy will wipe them out again.`,
+            503
+          );
+        }
+
         // '/api/'.length === 5 - must strip the FULL prefix including its
         // trailing slash. This used to be path.slice(4), which only
         // stripped '/api' and left a leading '/' on every apiPath (e.g.

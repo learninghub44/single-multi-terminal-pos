@@ -52,6 +52,14 @@
       }
     } catch (error) {
       console.error('Setup status check failed:', error);
+      // Surface this on-screen rather than only in the console - a shop
+      // owner staring at a login form with no visible explanation for why
+      // it won't work has no way to know the server itself is the problem.
+      const loginError = document.getElementById('login-error');
+      if (loginError) {
+        loginError.textContent = error.message || "Can't reach the server right now.";
+        loginError.classList.remove('hidden');
+      }
     }
   }
 

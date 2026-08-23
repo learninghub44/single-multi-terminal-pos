@@ -17,7 +17,22 @@ const Api = {
         headers
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        // The server returned something that isn't JSON at all - almost
+        // always means it crashed before reaching our own error handling
+        // (a raw platform error page, an empty body, a network proxy
+        // interstitial). The raw SyntaxError ("Unexpected token '<'...")
+        // is meaningless to someone using the app, so replace it with a
+        // message that actually says what to do next.
+        throw new Error(
+          response.ok
+            ? "Got an unexpected response from the server. Try again in a moment."
+            : `Server error (HTTP ${response.status}). If this keeps happening, check the Worker's Logs in the Cloudflare dashboard for the real cause.`
+        );
+      }
 
       if (!response.ok) {
         throw new Error(data.error?.message || 'Request failed');
