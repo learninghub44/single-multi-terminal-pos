@@ -66,9 +66,32 @@ export async function handleCustomerRoutes(request: Request, env: Env, path: str
     return success_response(data, 201);
   }
 
+  // GET /api/customers/:id/history - checked before the generic GET /:id
+  // handler below (that one matches any non-empty path, so if this check
+  // came after it, "abc123/history" would get treated as customer id
+  // "abc123/history" and always 404 instead of ever reaching this branch).
+  // path has no leading slash here - index.ts already stripped the full
+  // "customers/" prefix - so the id is everything except the trailing
+  // "/history" (8 chars, including that segment's own slash).
+  if (path.endsWith('/history') && request.method === 'GET') {
+    const id = path.slice(0, -8);
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*, payments(method, status)')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      return error_response('DATABASE_ERROR', error.message);
+    }
+
+    return success_response({ sales: data });
+  }
+
   // GET /api/customers/:id
-  if (path.startsWith('/') && request.method === 'GET') {
-    const id = path.slice(1);
+  if (path.length > 0 && request.method === 'GET') {
+    const id = path;
     const { data, error } = await supabase
       .from('customers')
       .select('*')
@@ -83,8 +106,8 @@ export async function handleCustomerRoutes(request: Request, env: Env, path: str
   }
 
   // PUT /api/customers/:id
-  if (path.startsWith('/') && request.method === 'PUT') {
-    const id = path.slice(1);
+  if (path.length > 0 && request.method === 'PUT') {
+    const id = path;
     const body = await request.json() as Partial<Customer>;
     const { name, phone, email } = body;
 
@@ -116,23 +139,6 @@ export async function handleCustomerRoutes(request: Request, env: Env, path: str
     }
 
     return success_response(data);
-  }
-
-  // GET /api/customers/:id/history
-  if (path.startsWith('/') && path.endsWith('/history') && request.method === 'GET') {
-    const id = path.slice(1, -8);
-    const { data, error } = await supabase
-      .from('sales')
-      .select('*, payments(method, status)')
-      .eq('customer_id', id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (error) {
-      return error_response('DATABASE_ERROR', error.message);
-    }
-
-    return success_response({ sales: data });
   }
 
   return error_response('NOT_FOUND', 'Endpoint not found', 404);

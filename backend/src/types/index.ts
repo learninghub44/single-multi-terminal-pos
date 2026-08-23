@@ -7,9 +7,19 @@ export interface Env {
   MPESA_PASSKEY: string;
   MPESA_SHORTCODE: string;
   MPESA_CALLBACK_URL: string;
+  // Shared secret appended to the callback URL path (…/webhooks/mpesa/<secret>)
+  // so the endpoint can't be spoofed by a stranger who finds/guesses the URL.
+  MPESA_WEBHOOK_SECRET: string;
   PAYHERO_API_KEY: string;
   PAYHERO_API_URL: string;
   PAYHERO_CALLBACK_URL: string;
+  // Required by PayHero's /payments endpoint - the registered payment channel
+  // (till/paybill/bank) to collect into. Found in PayHero dashboard > Payment Channels.
+  PAYHERO_CHANNEL_ID: string;
+  // Usually "m-pesa" unless your PayHero channel is a SasaPay wallet.
+  PAYHERO_PROVIDER: string;
+  PAYHERO_WEBHOOK_SECRET: string;
+  ASSETS: Fetcher;
 }
 
 export interface User {
@@ -85,14 +95,15 @@ export interface SaleItem {
 export interface Payment {
   id: string;
   sale_id: string;
-  method: 'cash' | 'mpesa' | 'payhero';
-  provider: 'cash' | 'mpesa' | 'payhero';
+  method: 'cash' | 'mpesa' | 'payhero' | 'manual';
+  provider: 'cash' | 'mpesa' | 'payhero' | 'manual';
   amount: number;
   status: 'pending' | 'paid' | 'failed' | 'cancelled' | 'expired' | 'refunded';
   phone: string | null;
   reference: string | null;
   provider_reference: string | null;
   provider_response: string | null;
+  confirmed_by: string | null;
   created_at: string;
   updated_at: string;
 }

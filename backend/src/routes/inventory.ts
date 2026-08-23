@@ -69,10 +69,16 @@ export async function handleInventoryRoutes(request: Request, env: Env, path: st
       return error_response('VALIDATION_ERROR', 'Invalid movement type');
     }
 
-    // Get current product
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return error_response('VALIDATION_ERROR', 'Quantity must be a positive number');
+    }
+
+    // Confirm the product exists before touching stock (adjust_stock_atomically
+    // would raise anyway, but this gives a clean 404 instead of a generic
+    // database error, and lets us include the product name in the audit log).
     const { data: product, error: productError } = await supabase
       .from('products')
-      .select('*')
+      .select('id, name')
       .eq('id', product_id)
       .single();
 
@@ -80,26 +86,22 @@ export async function handleInventoryRoutes(request: Request, env: Env, path: st
       return error_response('NOT_FOUND', 'Product not found', 404);
     }
 
-    // Calculate new stock
-    let newStock = product.stock_quantity;
-    if (type === 'purchase' || type === 'return' || type === 'opening_stock') {
-      newStock += quantity;
-    } else if (type === 'damage' || type === 'adjustment') {
-      newStock -= quantity;
-    }
+    const isIncrease = type === 'purchase' || type === 'return' || type === 'opening_stock';
+    const delta = isIncrease ? quantity : -quantity;
 
-    if (newStock < 0) {
-      return error_response('INSUFFICIENT_STOCK', 'Stock cannot go below zero');
-    }
+    // Single atomic UPDATE (no read-modify-write race) - see
+    // adjust_stock_atomically in migration_manual_payment_and_fixes.sql.
+    const { data: newStock, error: adjustError } = await supabase
+      .rpc('adjust_stock_atomically', {
+        p_product_id: product_id,
+        p_delta: delta
+      });
 
-    // Update product stock
-    const { error: updateError } = await supabase
-      .from('products')
-      .update({ stock_quantity: newStock, updated_at: new Date().toISOString() })
-      .eq('id', product_id);
-
-    if (updateError) {
-      return error_response('DATABASE_ERROR', updateError.message);
+    if (adjustError) {
+      if (adjustError.message?.includes('below zero')) {
+        return error_response('INSUFFICIENT_STOCK', 'Stock cannot go below zero', 400);
+      }
+      return error_response('DATABASE_ERROR', adjustError.message);
     }
 
     // Create inventory movement
@@ -126,7 +128,7 @@ export async function handleInventoryRoutes(request: Request, env: Env, path: st
       action: 'STOCK_ADJUSTED',
       entity: 'product',
       entity_id: product_id,
-      metadata: { type, quantity, new_stock: newStock }
+      metadata: { type, quantity, new_stock: newStock, product_name: product.name }
     });
 
     return success_response({
@@ -137,12 +139,11 @@ export async function handleInventoryRoutes(request: Request, env: Env, path: st
 
   // GET /api/inventory/low-stock
   if (path === 'low-stock' && request.method === 'GET') {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*, categories(name)')
-      .eq('status', 'active')
-      .filter('stock_quantity', 'lte', 'low_stock_threshold')
-      .order('stock_quantity', { ascending: true });
+    // Uses get_low_stock_products() (see migration_manual_payment_and_fixes.sql)
+    // rather than a supabase-js .filter() comparing two columns - that
+    // method only compares a column against a literal value, so the
+    // previous version was never actually finding low-stock products.
+    const { data, error } = await supabase.rpc('get_low_stock_products');
 
     if (error) {
       return error_response('DATABASE_ERROR', error.message);

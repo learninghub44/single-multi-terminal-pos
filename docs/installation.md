@@ -180,7 +180,12 @@ const CONFIG = {
 
 ## Production Deployment
 
-### Cloudflare Workers
+### Cloudflare Workers (single deployment - backend + frontend)
+
+This project deploys as **one** Cloudflare Worker that serves both the API
+and the static frontend via the `[assets]` binding in `wrangler.toml` -
+there's no separate frontend deploy step, and no Cloudflare Pages project
+needed.
 
 1. **Install Wrangler CLI**
    ```bash
@@ -192,53 +197,69 @@ const CONFIG = {
    wrangler login
    ```
 
-3. **Configure wrangler.toml**
+3. **`backend/wrangler.toml` is already configured** - no edits needed for a
+   first deploy. It looks like this:
    ```toml
-   name = "pos-system"
+   name = "pos-backend"
    main = "src/index.ts"
-   compatibility_date = "2024-01-01"
+   compatibility_date = "2024-08-01"
+   compatibility_flags = ["nodejs_compat"]
 
-   [vars]
-   ENVIRONMENT = "production"
-
-   [env.production]
-   vars = { ENVIRONMENT = "production" }
+   [assets]
+   directory = "../frontend"
+   binding = "ASSETS"
    ```
+   Change `name` if you want a different `<name>.workers.dev` subdomain.
 
-4. **Set Secrets**
-   ```bash
-   wrangler secret put SUPABASE_URL
-   wrangler secret put SUPABASE_SERVICE_KEY
-   wrangler secret put JWT_SECRET
-   # ... other secrets
-   ```
-
-5. **Deploy**
+4. **Set Secrets** (from `backend/.env.example` - see that file for what
+   each one is and where to get it)
    ```bash
    cd backend
+   wrangler secret put SUPABASE_URL
+   wrangler secret put SUPABASE_ANON_KEY
+   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+   wrangler secret put MPESA_CONSUMER_KEY
+   wrangler secret put MPESA_CONSUMER_SECRET
+   wrangler secret put MPESA_PASSKEY
+   wrangler secret put MPESA_SHORTCODE
+   wrangler secret put MPESA_CALLBACK_URL
+   wrangler secret put MPESA_WEBHOOK_SECRET
+   wrangler secret put PAYHERO_API_KEY
+   wrangler secret put PAYHERO_API_URL
+   wrangler secret put PAYHERO_CHANNEL_ID
+   wrangler secret put PAYHERO_PROVIDER
+   wrangler secret put PAYHERO_CALLBACK_URL
+   wrangler secret put PAYHERO_WEBHOOK_SECRET
+   ```
+   `MPESA_CALLBACK_URL` and `PAYHERO_CALLBACK_URL` need to end in the same
+   random secret you set for `MPESA_WEBHOOK_SECRET` / `PAYHERO_WEBHOOK_SECRET`
+   respectively - e.g. if your worker is `pos-backend.yourname.workers.dev`
+   and your secret is `a1b2c3`, the callback URL is
+   `https://pos-backend.yourname.workers.dev/api/webhooks/mpesa/a1b2c3`.
+   You won't know the final `.workers.dev` URL until after your first
+   deploy, so it's normal to deploy once, then come back and set the two
+   callback-URL secrets with the real URL, then deploy again.
+
+5. **Run the database migrations** (in order, in the Supabase SQL editor):
+   `database/schema.sql` → `database/migration_multi_terminal.sql` →
+   `database/migration_manual_payment_and_fixes.sql`
+
+6. **Deploy**
+   ```bash
+   cd backend
+   npm install
    npm run deploy
    ```
+   This single command builds and deploys both the API and the frontend
+   (HTML/CSS/JS, including the offline service worker) together.
 
 ### Custom Domain
 
 1. Add your domain in Cloudflare Workers dashboard
-2. Update CORS_ORIGIN environment variable
+2. Point it at the `pos-backend` Worker (Workers > your worker > Triggers > Custom Domains)
 3. Configure DNS records
-
-### Frontend Deployment
-
-The frontend is static files and can be deployed to:
-
-- **Cloudflare Pages**
-- **Netlify**
-- **Vercel**
-- **Any static hosting**
-
-Example with Cloudflare Pages:
-```bash
-# In frontend directory
-npx wrangler pages deploy . --project-name=pos-frontend
-```
+4. Update `MPESA_CALLBACK_URL` / `PAYHERO_CALLBACK_URL` secrets to use the
+   custom domain instead of `*.workers.dev`, then redeploy
 
 ## Initial Setup After Deployment
 

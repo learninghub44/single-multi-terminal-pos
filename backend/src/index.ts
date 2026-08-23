@@ -28,14 +28,24 @@ export default {
 
       // API routes
       if (path.startsWith('/api/')) {
-        const apiPath = path.slice(4);
+        // '/api/'.length === 5 - must strip the FULL prefix including its
+        // trailing slash. This used to be path.slice(4), which only
+        // stripped '/api' and left a leading '/' on every apiPath (e.g.
+        // "/products/abc123" instead of "products/abc123"). Every check
+        // below is a bare apiPath.startsWith('products/') with no leading
+        // slash, so with the old off-by-one every single one of these
+        // comparisons was false - the entire API returned 404 for every
+        // request, regardless of route or method.
+        const apiPath = path.slice(5);
 
         // Auth routes (public)
         if (apiPath.startsWith('auth/')) {
           return handleAuthRoutes(request, env, apiPath.slice(5));
         }
 
-        // Webhook routes (public, verified by provider)
+        // Webhook routes (public - verified via a shared secret in the URL
+        // path itself, since neither Safaricom nor PayHero sign callbacks).
+        // Expected shape: /api/webhooks/mpesa/<secret> or /api/webhooks/payhero/<secret>
         if (apiPath.startsWith('webhooks/')) {
           return handleWebhookRoutes(request, env, apiPath.slice(9));
         }
@@ -131,11 +141,13 @@ export default {
         return error_response('NOT_FOUND', 'API endpoint not found', 404);
       }
 
-      // Non-API routes - serve frontend
-      return new Response('Frontend should be served by static assets', {
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      // Non-API routes - the [assets] binding already serves matching static
+      // files (index.html, /js/*, /css/*, /sw.js) before this handler even
+      // runs; anything that reaches here didn't match a real file. Hash
+      // routing means the app never needs deep-link fallback to index.html -
+      // just hand it to ASSETS so unmatched paths get a proper 404 instead
+      // of the placeholder text this used to return.
+      return env.ASSETS.fetch(request);
 
     } catch (error) {
       if (error instanceof AuthenticationError) {

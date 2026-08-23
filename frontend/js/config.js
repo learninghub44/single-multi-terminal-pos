@@ -29,7 +29,9 @@ const API = {
   PAYMENTS: {
     MPEZA_INITIATE: `${CONFIG.API_BASE}/payments/mpesa/initiate`,
     PAYHERO_INITIATE: `${CONFIG.API_BASE}/payments/payhero/initiate`,
-    STATUS: (id) => `${CONFIG.API_BASE}/payments/${id}/status`
+    MANUAL_INITIATE: `${CONFIG.API_BASE}/payments/manual/initiate`,
+    STATUS: (id) => `${CONFIG.API_BASE}/payments/${id}/status`,
+    CANCEL: (id) => `${CONFIG.API_BASE}/payments/${id}/cancel`
   },
   WEBHOOKS: {
     MPEZA: `${CONFIG.API_BASE}/webhooks/mpesa`,

@@ -5,9 +5,51 @@ import { getSupabaseService } from '../services/supabase';
 export async function handleReceiptRoutes(request: Request, env: Env, path: string): Promise<Response> {
   const supabase = getSupabaseService(env);
 
+  // GET /api/receipts/:receipt_number/html - Get receipt HTML for printing.
+  // Checked before the generic GET /:receipt_number below - that handler
+  // matches any non-empty path, so if this check came after it,
+  // "RCT-000001/html" would get treated as a lookup for a receipt number
+  // literally ending in "/html" and always 404 (this is exactly why the
+  // print button was broken - printReceipt() in pos.js calls this route).
+  // path has no leading slash - index.ts already stripped "receipts/" -
+  // so the receipt number is everything except the trailing "/html" (5 chars).
+  if (path.endsWith('/html') && request.method === 'GET') {
+    // Auth required for printing
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return error_response('UNAUTHORIZED', 'Authentication required', 401);
+    }
+
+    const receiptNumber = path.slice(0, -5);
+
+    const { data: settings } = await supabase
+      .from('business_settings')
+      .select('*')
+      .limit(1)
+      .single();
+
+    const { data: sale, error } = await supabase
+      .from('sales')
+      .select('*, sale_items(*, products(sku, barcode)), payments(*), customers(name, phone), users(full_name), terminals(terminal_code, name)')
+      .eq('receipt_number', receiptNumber)
+      .single();
+
+    if (error || !sale) {
+      return error_response('NOT_FOUND', 'Receipt not found', 404);
+    }
+
+    const html = generateReceiptHTML(sale, settings);
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html'
+      }
+    });
+  }
+
   // GET /api/receipts/:receipt_number - Public endpoint for QR verification
-  if (path.startsWith('/') && request.method === 'GET') {
-    const receiptNumber = path.slice(1);
+  if (path.length > 0 && request.method === 'GET') {
+    const receiptNumber = path;
 
     const { data: sale, error } = await supabase
       .from('sales')
@@ -32,41 +74,6 @@ export async function handleReceiptRoutes(request: Request, env: Env, path: stri
         total: item.subtotal
       })),
       payment_method: sale.payments?.[0]?.method
-    });
-  }
-
-  // GET /api/receipts/:receipt_number/html - Get receipt HTML for printing
-  if (path.startsWith('/') && path.endsWith('/html') && request.method === 'GET') {
-    // Auth required for printing
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return error_response('UNAUTHORIZED', 'Authentication required', 401);
-    }
-
-    const receiptNumber = path.slice(1, -5);
-
-    const { data: settings } = await supabase
-      .from('business_settings')
-      .select('*')
-      .limit(1)
-      .single();
-
-    const { data: sale, error } = await supabase
-      .from('sales')
-      .select('*, sale_items(*, products(sku, barcode)), payments(*), customers(name, phone), users(full_name), terminals(terminal_code, name)')
-      .eq('receipt_number', receiptNumber)
-      .single();
-
-    if (error || !sale) {
-      return error_response('NOT_FOUND', 'Receipt not found', 404);
-    }
-
-    const html = generateReceiptHTML(sale, settings);
-
-    return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html'
-      }
     });
   }
 

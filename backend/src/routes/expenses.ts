@@ -95,10 +95,10 @@ export async function handleExpenseRoutes(request: Request, env: Env, path: stri
   }
 
   // PUT /api/expenses/:id
-  if (path.startsWith('/') && request.method === 'PUT') {
+  if (path.length > 0 && request.method === 'PUT') {
     authorize(user, ['owner', 'manager']);
 
-    const id = path.slice(1);
+    const id = path;
     const body = await request.json() as Partial<Expense>;
     const { category, description, amount } = body;
 
@@ -132,10 +132,10 @@ export async function handleExpenseRoutes(request: Request, env: Env, path: stri
   }
 
   // DELETE /api/expenses/:id
-  if (path.startsWith('/') && request.method === 'DELETE') {
+  if (path.length > 0 && request.method === 'DELETE') {
     authorize(user, ['owner']);
 
-    const id = path.slice(1);
+    const id = path;
     const { error } = await supabase
       .from('expenses')
       .delete()

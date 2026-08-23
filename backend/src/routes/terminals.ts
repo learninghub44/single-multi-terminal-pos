@@ -85,8 +85,8 @@ export async function handleTerminalRoutes(request: Request, env: Env, path: str
   }
 
   // GET /api/terminals/:id - Get single terminal
-  if (path.startsWith('/') && request.method === 'GET' && !path.includes('/activity')) {
-    const id = path.slice(1);
+  if (path.length > 0 && request.method === 'GET' && !path.includes('/activity')) {
+    const id = path;
     const { data, error } = await supabase
       .from('terminals')
       .select('*')
@@ -101,10 +101,10 @@ export async function handleTerminalRoutes(request: Request, env: Env, path: str
   }
 
   // PUT /api/terminals/:id - Update terminal (owner/manager only)
-  if (path.startsWith('/') && request.method === 'PUT') {
+  if (path.length > 0 && request.method === 'PUT') {
     authorize(user, ['owner', 'manager']);
 
-    const id = path.slice(1);
+    const id = path;
     const body = await request.json() as Partial<Terminal>;
     const { terminal_code, name, location, status } = body;
 
@@ -165,9 +165,11 @@ export async function handleTerminalRoutes(request: Request, env: Env, path: str
     return success_response(data);
   }
 
-  // GET /api/terminals/:id/activity - Get terminal activity
-  if (path.startsWith('/') && path.endsWith('/activity') && request.method === 'GET') {
-    const id = path.slice(1, -9);
+  // GET /api/terminals/:id/activity - Get terminal activity. path has no
+  // leading slash here (index.ts already stripped "terminals/"), so the id
+  // is everything except the trailing "/activity" (9 chars).
+  if (path.endsWith('/activity') && request.method === 'GET') {
+    const id = path.slice(0, -9);
 
     // Get recent sales for this terminal
     const { data: sales, error: salesError } = await supabase

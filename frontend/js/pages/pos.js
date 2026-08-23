@@ -102,6 +102,10 @@ const POSPage = {
               <div class="payment-btn-icon">💳</div>
               <div class="payment-btn-label">PayHero</div>
             </button>
+            <button class="payment-btn manual" onclick="POSPage.checkout('manual')">
+              <div class="payment-btn-icon">🧾</div>
+              <div class="payment-btn-label">Till</div>
+            </button>
           </div>
         </div>
       </div>
@@ -110,6 +114,16 @@ const POSPage = {
     await this.loadData();
     this.setupEventListeners();
     this.setupBarcodeScanner();
+    this.updateOfflinePaymentButtons();
+
+    // Register once - render() can be called repeatedly (terminal switches,
+    // navigation back to POS) and OfflineSync keeps listeners for the whole
+    // page lifetime, so re-registering every render would stack duplicate
+    // handlers.
+    if (!this._offlineListenerRegistered) {
+      OfflineSync.onStatusChange(() => this.updateOfflinePaymentButtons());
+      this._offlineListenerRegistered = true;
+    }
   },
 
   async showTerminalSelection(container) {
@@ -163,8 +177,19 @@ const POSPage = {
   },
 
   async loadData() {
+    const terminal = Auth.getTerminal();
+
+    if (!OfflineSync.isOnline()) {
+      await this.loadFromCache();
+      // Cash session state can't be verified without a network round trip -
+      // keep whatever was last loaded in memory (set on the last successful
+      // online load) rather than guessing.
+      this.renderCashSessionBar();
+      this.updateOfflinePaymentButtons();
+      return;
+    }
+
     try {
-      const terminal = Auth.getTerminal();
       const [productsRes, categoriesRes, customersRes] = await Promise.all([
         Api.get(API.PRODUCTS, { limit: 100, status: 'active' }),
         Api.get(API.CATEGORIES),
@@ -174,11 +199,13 @@ const POSPage = {
       if (productsRes.success) {
         this.products = productsRes.data.products;
         this.renderProducts();
+        OfflineStore.cacheProducts(this.products).catch(err => console.error('Product cache error:', err));
       }
 
       if (categoriesRes.success) {
         this.categories = categoriesRes.data.categories;
         this.renderCategories();
+        OfflineStore.cacheCategories(this.categories).catch(err => console.error('Category cache error:', err));
       }
 
       if (customersRes.success) {
@@ -192,8 +219,43 @@ const POSPage = {
       }
     } catch (error) {
       console.error('POS data load error:', error);
-      Toast.show('Failed to load POS data', 'error');
+      // Network request itself failed (e.g. connection dropped mid-load) -
+      // fall back to whatever was cached from the last successful load
+      // rather than leaving the screen empty.
+      Toast.show('Connection lost - showing cached products', 'warning');
+      await this.loadFromCache();
     }
+
+    this.updateOfflinePaymentButtons();
+  },
+
+  async loadFromCache() {
+    try {
+      const [products, categories] = await Promise.all([
+        OfflineStore.getCachedProducts(),
+        OfflineStore.getCachedCategories()
+      ]);
+      this.products = products;
+      this.categories = categories;
+      this.renderProducts();
+      this.renderCategories();
+
+      if (!products.length) {
+        Toast.show('No cached products yet - connect to the internet at least once first', 'warning');
+      }
+    } catch (error) {
+      console.error('Failed to load from offline cache:', error);
+    }
+  },
+
+  updateOfflinePaymentButtons() {
+    const online = OfflineSync.isOnline();
+    ['mpesa', 'payhero', 'manual'].forEach((method) => {
+      const btn = document.querySelector(`.payment-btn.${method}`);
+      if (!btn) return;
+      btn.disabled = !online;
+      btn.title = online ? '' : 'Needs an internet connection';
+    });
   },
 
   async loadCashSession(terminalId) {
@@ -391,6 +453,27 @@ const POSPage = {
     searchInput.addEventListener('input', Utils.debounce((e) => {
       this.searchProducts(e.target.value);
     }, 300));
+
+    // Barcode scanners are keyboard-wedge devices: they "type" the code into
+    // whatever has focus and then send Enter (sometimes Tab). If the search
+    // box has focus - the common case, since it's the first thing on the
+    // page - BarcodeScanner's global listener below ignores it (it skips
+    // INPUT/TEXTAREA targets to avoid interfering with normal typing), so a
+    // scan would otherwise just sit in the search box as a filter with
+    // nothing added to the cart. This catches that case directly.
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const value = searchInput.value.trim();
+      if (!value) return;
+
+      const exactMatch = this.products.find(p => p.barcode === value || p.sku === value);
+      if (exactMatch) {
+        e.preventDefault();
+        this.addToCart(exactMatch.id);
+        searchInput.value = '';
+        this.searchProducts('');
+      }
+    });
 
     document.getElementById('cart-customer').addEventListener('change', (e) => {
       this.selectedCustomer = e.target.value || null;
@@ -598,6 +681,11 @@ const POSPage = {
       return;
     }
 
+    if (method !== 'cash' && !OfflineSync.isOnline()) {
+      Toast.show(`${Utils.getPaymentMethodName(method)} needs an internet connection. Use Cash while offline.`, 'error');
+      return;
+    }
+
     const subtotal = this.cart.reduce((sum, item) => sum + item.subtotal, 0);
     const total = subtotal - this.discount + this.tax;
 
@@ -607,6 +695,8 @@ const POSPage = {
       this.showMpesaCheckout(total);
     } else if (method === 'payhero') {
       this.showPayHeroCheckout(total);
+    } else if (method === 'manual') {
+      this.showManualCheckout(total);
     }
   },
 
@@ -655,17 +745,41 @@ const POSPage = {
       return;
     }
 
+    const salePayload = {
+      items: this.cart,
+      customer_id: this.selectedCustomer,
+      discount: this.discount,
+      tax: this.tax,
+      payment_method: 'cash',
+      terminal_id: terminal?.id,
+      cash_session_id: this.cashSession?.id,
+      payment_details: { amount_received: amountReceived }
+    };
+
+    // Offline: skip the network call entirely and queue locally. Cash is the
+    // only method that can complete without a round trip - the cashier has
+    // the money in hand, there's nothing left to confirm.
+    if (!OfflineSync.isOnline()) {
+      try {
+        const queued = await OfflineStore.queueSale(salePayload);
+        this.lastSaleSnapshot = { items: [...this.cart], total };
+        Modal.close();
+        Toast.show('Offline sale saved - will sync when back online', 'warning');
+        this.showReceipt(queued.local_receipt_number, amountReceived - total, true);
+        this.clearCart();
+        await this.loadFromCache();
+        OfflineSync.notify();
+      } catch (error) {
+        console.error('Failed to queue offline sale:', error);
+        Toast.show('Failed to save offline sale', 'error');
+      } finally {
+        this.isProcessing = false;
+      }
+      return;
+    }
+
     try {
-      const response = await Api.post(API.SALES, {
-        items: this.cart,
-        customer_id: this.selectedCustomer,
-        discount: this.discount,
-        tax: this.tax,
-        payment_method: 'cash',
-        terminal_id: terminal?.id,
-        cash_session_id: this.cashSession?.id,
-        payment_details: { amount_received: amountReceived }
-      });
+      const response = await Api.post(API.SALES, salePayload);
 
       if (response.success) {
         Modal.close();
@@ -681,7 +795,25 @@ const POSPage = {
         await this.loadData();
       }
     } catch (error) {
-      Toast.show(error.message || 'Failed to process payment', 'error');
+      // The request itself failed (connection dropped between the online
+      // check above and now) - don't lose the sale, queue it offline instead.
+      if (!navigator.onLine) {
+        try {
+          const queued = await OfflineStore.queueSale(salePayload);
+          this.lastSaleSnapshot = { items: [...this.cart], total };
+          Modal.close();
+          Toast.show('Connection lost - sale saved offline and will sync later', 'warning');
+          this.showReceipt(queued.local_receipt_number, amountReceived - total, true);
+          this.clearCart();
+          await this.loadFromCache();
+          OfflineSync.notify();
+        } catch (queueError) {
+          console.error('Failed to queue offline sale:', queueError);
+          Toast.show('Failed to process payment', 'error');
+        }
+      } else {
+        Toast.show(error.message || 'Failed to process payment', 'error');
+      }
     } finally {
       this.isProcessing = false;
     }
@@ -750,7 +882,10 @@ const POSPage = {
 
       if (paymentResponse.success) {
         Modal.close();
-        this.showPendingPayment(saleResponse.data.sale, 'mpesa');
+        this.showPendingPayment(saleResponse.data.sale, saleResponse.data.payment, 'mpesa');
+      } else {
+        await this.cancelOrphanedSale(saleResponse.data.payment?.id);
+        throw new Error(paymentResponse.error?.message || 'Failed to initiate M-Pesa payment');
       }
     } catch (error) {
       Toast.show(error.message || 'Failed to initiate M-Pesa payment', 'error');
@@ -822,7 +957,12 @@ const POSPage = {
 
       if (paymentResponse.success) {
         Modal.close();
-        this.showPendingPayment(saleResponse.data.sale, 'payhero');
+        this.showPendingPayment(saleResponse.data.sale, saleResponse.data.payment, 'payhero');
+      } else {
+        // Initiation failed after the sale (and its stock deduction) was
+        // already created - cancel it so stock isn't stuck reserved forever.
+        await this.cancelOrphanedSale(saleResponse.data.payment?.id);
+        throw new Error(paymentResponse.error?.message || 'Failed to initiate PayHero payment');
       }
     } catch (error) {
       Toast.show(error.message || 'Failed to initiate PayHero payment', 'error');
@@ -831,7 +971,99 @@ const POSPage = {
     }
   },
 
-  showPendingPayment(sale, method) {
+  // Cancels a just-created pending payment/sale and restores its stock.
+  // Used when a mobile-money initiate call fails right after sale creation.
+  async cancelOrphanedSale(paymentId) {
+    if (!paymentId) return;
+    try {
+      await Api.post(API.PAYMENTS.CANCEL(paymentId), {});
+    } catch (err) {
+      console.error('Failed to cancel orphaned sale:', err);
+    }
+  },
+
+  showManualCheckout(total) {
+    const content = `
+      <div class="checkout-summary">
+        <div class="checkout-total">${Utils.formatCurrency(total)}</div>
+      </div>
+      <div class="manual-payment-instructions">
+        <p>Ask the customer to pay <strong>${Utils.formatCurrency(total)}</strong> to your Till/Paybill number, then confirm below once you've seen the M-Pesa message on your phone.</p>
+      </div>
+      <div class="form-group">
+        <label for="manual-till-ref">Till/Paybill Reference (optional)</label>
+        <input type="text" id="manual-till-ref" class="form-input" placeholder="e.g. account name or till number used">
+      </div>
+      <div class="form-group">
+        <label for="manual-confirmation-code">M-Pesa Confirmation Code</label>
+        <input type="text" id="manual-confirmation-code" class="form-input" placeholder="e.g. SAE3YULR0Y" style="text-transform: uppercase;" autocomplete="off">
+        <div class="form-hint">Copy the code from the confirmation SMS - this is your proof of payment.</div>
+      </div>
+    `;
+
+    Modal.show('Till Payment (Manual)', content, {
+      footer: `
+        <button class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-success" onclick="POSPage.processManualPayment()">Confirm Payment Received</button>
+      `
+    });
+  },
+
+  async processManualPayment() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+
+    const tillRef = document.getElementById('manual-till-ref').value.trim();
+    const confirmationCode = document.getElementById('manual-confirmation-code').value.trim();
+    const terminal = Auth.getTerminal();
+
+    if (!confirmationCode) {
+      Toast.show('Enter the M-Pesa confirmation code before confirming', 'error');
+      this.isProcessing = false;
+      return;
+    }
+
+    let saleResponse;
+    try {
+      saleResponse = await Api.post(API.SALES, {
+        items: this.cart,
+        customer_id: this.selectedCustomer,
+        discount: this.discount,
+        tax: this.tax,
+        payment_method: 'manual',
+        terminal_id: terminal?.id,
+        cash_session_id: this.cashSession?.id,
+        payment_details: {}
+      });
+
+      if (!saleResponse.success) {
+        throw new Error(saleResponse.error?.message);
+      }
+
+      const confirmResponse = await Api.post(API.PAYMENTS.MANUAL_INITIATE, {
+        sale_id: saleResponse.data.sale.id,
+        till_reference: tillRef || null,
+        confirmation_code: confirmationCode
+      });
+
+      if (!confirmResponse.success) {
+        await this.cancelOrphanedSale(saleResponse.data.payment?.id);
+        throw new Error(confirmResponse.error?.message || 'Failed to confirm payment');
+      }
+
+      Modal.close();
+      Toast.show('Sale completed successfully', 'success');
+      this.showReceipt(saleResponse.data.sale.receipt_number);
+      this.clearCart();
+      await this.loadData();
+    } catch (error) {
+      Toast.show(error.message || 'Failed to process till payment', 'error');
+    } finally {
+      this.isProcessing = false;
+    }
+  },
+
+  showPendingPayment(sale, payment, method) {
     const methodName = Utils.getPaymentMethodName(method);
     const content = `
       <div class="pending-payment">
@@ -844,32 +1076,95 @@ const POSPage = {
       </div>
     `;
 
-    Modal.show(`${methodName} Payment Pending`, content);
+    Modal.show(`${methodName} Payment Pending`, content, {
+      footer: payment?.id ? `
+        <button class="btn btn-secondary" onclick="POSPage.cancelPendingPayment('${payment.id}')">Cancel Payment</button>
+      ` : ''
+    });
 
     // Poll for payment status
-    this.pollPaymentStatus(sale.id);
+    this.pollPaymentStatus(sale.id, payment?.id);
   },
 
-  async pollPaymentStatus(saleId) {
-    const maxAttempts = 60; // 5 minutes with 5 second intervals
+  async cancelPendingPayment(paymentId) {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+    this.pollCancelled = true;
+
+    try {
+      if (paymentId) {
+        await Api.post(API.PAYMENTS.CANCEL(paymentId), {});
+      }
+      Modal.close();
+      Toast.show('Payment cancelled. Stock has been restored.', 'info');
+      await this.loadData();
+    } catch (error) {
+      Toast.show(error.message || 'Failed to cancel payment', 'error');
+    } finally {
+      this.isProcessing = false;
+    }
+  },
+
+  async pollPaymentStatus(saleId, paymentId) {
+    const maxAttempts = 36; // 3 minutes with 5 second intervals, matches server-side expiry
     let attempts = 0;
+    this.pollCancelled = false;
 
     const poll = async () => {
+      if (this.pollCancelled) {
+        return;
+      }
+
       if (attempts >= maxAttempts) {
+        // Ask the backend to resolve/expire it (it auto-cancels + restocks
+        // once past expires_at) rather than just giving up client-side.
+        if (paymentId) {
+          try {
+            await Api.get(API.PAYMENTS.STATUS(paymentId));
+          } catch (err) {
+            console.error('Final status check error:', err);
+          }
+        }
         Modal.close();
-        Toast.show('Payment timeout. Please check sales.', 'warning');
+        Toast.show('Payment timed out and was cancelled. Stock has been restored.', 'warning');
+        await this.loadData();
         return;
       }
 
       try {
-        const response = await Api.get(API.SALES + '/' + saleId);
-        if (response.success && response.data.status === 'completed') {
-          Modal.close();
-          Toast.show('Payment received!', 'success');
-          this.showReceipt(response.data.receipt_number);
-          this.clearCart();
-          await this.loadData();
-          return;
+        // Hitting the payment status endpoint (not just the sale) makes the
+        // backend actively poll the provider and resolve stuck payments,
+        // rather than passively waiting on the webhook alone.
+        if (paymentId) {
+          const statusResponse = await Api.get(API.PAYMENTS.STATUS(paymentId));
+          if (statusResponse.success) {
+            const status = statusResponse.data.status;
+            if (status === 'paid') {
+              Modal.close();
+              Toast.show('Payment received!', 'success');
+              const saleResponse = await Api.get(API.SALES + '/' + saleId);
+              this.showReceipt(saleResponse.success ? saleResponse.data.receipt_number : '');
+              this.clearCart();
+              await this.loadData();
+              return;
+            }
+            if (status === 'failed' || status === 'cancelled' || status === 'expired') {
+              Modal.close();
+              Toast.show('Payment was not completed. Stock has been restored.', 'warning');
+              await this.loadData();
+              return;
+            }
+          }
+        } else {
+          const response = await Api.get(API.SALES + '/' + saleId);
+          if (response.success && response.data.status === 'completed') {
+            Modal.close();
+            Toast.show('Payment received!', 'success');
+            this.showReceipt(response.data.receipt_number);
+            this.clearCart();
+            await this.loadData();
+            return;
+          }
         }
       } catch (error) {
         console.error('Poll error:', error);
@@ -882,26 +1177,32 @@ const POSPage = {
     poll();
   },
 
-  async showReceipt(receiptNumber, change = 0) {
+  async showReceipt(receiptNumber, change = 0, isOffline = false) {
     const terminal = Auth.getTerminal();
     const content = `
       <div style="text-align: center; padding: 20px;">
-        <h3>Sale Completed!</h3>
+        <h3>${isOffline ? 'Sale Saved (Offline)' : 'Sale Completed!'}</h3>
         <p>Receipt: <strong>${receiptNumber}</strong></p>
         ${terminal ? `<p>Terminal: <strong>${terminal.terminal_code}</strong></p>` : ''}
         ${change > 0 ? `<p>Change: <strong>${Utils.formatCurrency(change)}</strong></p>` : ''}
+        ${isOffline ? '<p class="text-sm text-muted">This will get a real receipt number once it syncs. The printed copy below is a temporary copy for the customer.</p>' : ''}
       </div>
     `;
 
-    Modal.show('Sale Complete', content, {
+    Modal.show(isOffline ? 'Offline Sale Saved' : 'Sale Complete', content, {
       footer: `
         <button class="btn btn-secondary" onclick="Modal.close()">Close</button>
-        <button class="btn btn-primary" onclick="POSPage.printReceipt('${receiptNumber}')">Print Receipt</button>
+        <button class="btn btn-primary" onclick="POSPage.printReceipt('${receiptNumber}', ${isOffline})">Print Receipt</button>
       `
     });
   },
 
-  async printReceipt(receiptNumber) {
+  async printReceipt(receiptNumber, isOffline = false) {
+    if (isOffline) {
+      this.printOfflineReceipt(receiptNumber);
+      return;
+    }
+
     try {
       const response = await fetch(API.RECEIPTS(receiptNumber) + '/html', {
         headers: {
@@ -918,6 +1219,66 @@ const POSPage = {
     } catch (error) {
       Toast.show('Failed to load receipt', 'error');
     }
+  },
+
+  // Server can't generate a receipt for a sale it hasn't seen yet, so this
+  // builds a minimal printable copy from the snapshot taken right before the
+  // cart was cleared (see processCashPayment). Kept visually close to the
+  // server template (receipts.ts) so a cashier can't tell the two apart at a
+  // glance except for the OFFLINE tag.
+  printOfflineReceipt(receiptNumber) {
+    const terminal = Auth.getTerminal();
+    const snapshot = this.lastSaleSnapshot || { items: [], total: 0 };
+    const date = new Date().toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' });
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Receipt ${receiptNumber}</title>
+<style>
+  @page { size: 80mm auto; margin: 2mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 12px; width: 80mm; padding: 2mm; background: white; color: black; }
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+  .line { border-top: 1px dashed #000; margin: 2mm 0; }
+  .item { display: flex; justify-content: space-between; margin: 1mm 0; }
+  .total-row { display: flex; justify-content: space-between; margin: 1mm 0; }
+  .offline-tag { border: 1px solid #000; padding: 1mm; text-align: center; margin: 2mm 0; }
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="bold" style="font-size: 14px;">POS Store</div>
+  </div>
+  <div class="line"></div>
+  <div class="offline-tag bold">OFFLINE SALE - PENDING SYNC</div>
+  <div>
+    <div class="bold">RECEIPT ${Utils.escapeHtml(receiptNumber)}</div>
+    <div>Date: ${date}</div>
+    ${terminal ? `<div>Terminal: ${Utils.escapeHtml(terminal.terminal_code)}</div>` : ''}
+  </div>
+  <div class="line"></div>
+  ${snapshot.items.map(item => `
+    <div class="item">
+      <span>${Utils.escapeHtml(item.product_name)} x${item.quantity}</span>
+      <span>${Utils.formatCurrency(item.subtotal)}</span>
+    </div>
+  `).join('')}
+  <div class="line"></div>
+  <div class="total-row bold">
+    <span>TOTAL</span>
+    <span>${Utils.formatCurrency(snapshot.total)}</span>
+  </div>
+  <div class="line"></div>
+  <div class="center">This copy is temporary - final receipt<br>number is issued once synced online.</div>
+</body>
+</html>`;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(html);
+    printWindow.document.close();
   }
 };
 

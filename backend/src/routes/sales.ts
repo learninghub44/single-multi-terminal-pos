@@ -73,7 +73,7 @@ export async function handleSaleRoutes(request: Request, env: Env, path: string)
       customer_id?: string;
       discount?: number;
       tax?: number;
-      payment_method: 'cash' | 'mpesa' | 'payhero';
+      payment_method: 'cash' | 'mpesa' | 'payhero' | 'manual';
       terminal_id?: string;
       cash_session_id?: string;
       payment_details?: {
@@ -106,7 +106,12 @@ export async function handleSaleRoutes(request: Request, env: Env, path: string)
       }
     }
 
-    // Validate and calculate on server side
+    // Validate and calculate on server side. This pass computes authoritative
+    // prices/subtotal (never trust client-sent prices) and gives a fast,
+    // specific error before we even generate a receipt number. It is NOT the
+    // final stock check - create_sale_atomically re-validates and locks
+    // stock again inside the transaction below, since stock here can still
+    // change between this read and the transaction that follows.
     let subtotal = 0;
     const saleItems: Array<{
       product_id: string;
@@ -177,118 +182,60 @@ export async function handleSaleRoutes(request: Request, env: Env, path: string)
       receiptNumber = receiptData;
     }
 
-    // Create sale
-    const saleInsert: Record<string, unknown> = {
-      receipt_number: receiptNumber,
-      customer_id: customer_id || null,
-      user_id: user.id,
-      subtotal,
-      discount,
-      tax,
-      total,
-      status: payment_method === 'cash' ? 'completed' : 'pending'
-    };
-
-    if (terminal_id) saleInsert.terminal_id = terminal_id;
-    if (cash_session_id) saleInsert.cash_session_id = cash_session_id;
-
-    const { data: sale, error: saleError } = await supabase
-      .from('sales')
-      .insert(saleInsert)
-      .select()
-      .single();
-
-    if (saleError) {
-      return error_response('DATABASE_ERROR', saleError.message);
-    }
-
-    // Create sale items
-    const saleItemsWithId = saleItems.map(item => ({
-      ...item,
-      sale_id: sale.id
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('sale_items')
-      .insert(saleItemsWithId);
-
-    if (itemsError) {
-      await supabase.from('sales').delete().eq('id', sale.id);
-      return error_response('DATABASE_ERROR', itemsError.message);
-    }
-
-    // Create payment
-    const paymentInsert: Record<string, unknown> = {
-      sale_id: sale.id,
-      method: payment_method,
-      provider: payment_method,
-      amount: total,
-      status: payment_method === 'cash' ? 'paid' : 'pending',
-      phone: payment_details?.phone || null,
-      reference: null,
-      provider_reference: null,
-      provider_response: null
-    };
-
-    if (terminal_id) paymentInsert.terminal_id = terminal_id;
-
-    const { data: payment, error: paymentError } = await supabase
-      .from('payments')
-      .insert(paymentInsert)
-      .select()
-      .single();
-
-    if (paymentError) {
-      await supabase.from('sale_items').delete().eq('sale_id', sale.id);
-      await supabase.from('sales').delete().eq('id', sale.id);
-      return error_response('DATABASE_ERROR', paymentError.message);
-    }
-
-    // Update inventory using atomic function for each item
-    for (const item of saleItems) {
-      try {
-        const { error: deductError } = await supabase
-          .rpc('deduct_stock_atomically', {
-            p_product_id: item.product_id,
-            p_quantity: item.quantity
-          });
-
-        if (deductError) {
-          // Rollback entire sale
-          await supabase.from('payments').delete().eq('id', payment.id);
-          await supabase.from('sale_items').delete().eq('sale_id', sale.id);
-          await supabase.from('sales').delete().eq('id', sale.id);
-          throw new InsufficientStockError(deductError.message);
-        }
-
-        // Create inventory movement
-        await supabase
-          .from('inventory_movements')
-          .insert({
-            product_id: item.product_id,
-            type: 'sale',
-            quantity: -item.quantity,
-            reference: sale.id,
-            notes: `Sale ${receiptNumber}`,
-            user_id: user.id
-          });
-      } catch (err) {
-        if (err instanceof InsufficientStockError) {
-          throw err;
-        }
-        console.error('Inventory deduction error:', err);
-      }
-    }
-
-    // Audit log
-    await supabase.from('audit_logs').insert({
-      user_id: user.id,
-      action: 'SALE_CREATED',
-      entity: 'sale',
-      entity_id: sale.id,
-      terminal_id: terminal_id || null,
-      metadata: { receipt_number: receiptNumber, total, payment_method, terminal_id }
+    // Everything below - creating the sale, its line items, the payment
+    // record, deducting stock, and the inventory/audit log entries - runs
+    // as ONE Postgres transaction inside create_sale_atomically. Either all
+    // of it commits or none of it does; there's no window where a Worker
+    // crash or dropped connection can leave a half-written sale.
+    const { data: result, error: rpcError } = await supabase.rpc('create_sale_atomically', {
+      p_receipt_number: receiptNumber,
+      p_customer_id: customer_id || null,
+      p_user_id: user.id,
+      p_terminal_id: terminal_id || null,
+      p_cash_session_id: cash_session_id || null,
+      p_subtotal: subtotal,
+      p_discount: discount,
+      p_tax: tax,
+      p_total: total,
+      p_status: payment_method === 'cash' ? 'completed' : 'pending',
+      p_payment_method: payment_method,
+      p_payment_status: payment_method === 'cash' ? 'paid' : 'pending',
+      p_payment_phone: payment_details?.phone || null,
+      p_items: saleItems
     });
+
+    if (rpcError) {
+      const message = rpcError.message || '';
+      if (message.includes('Insufficient stock')) {
+        return error_response('INSUFFICIENT_STOCK', message, 400);
+      }
+      if (message.includes('not found') || message.includes('archived') || message.includes('empty')) {
+        return error_response('VALIDATION_ERROR', message, 400);
+      }
+      return error_response('DATABASE_ERROR', message);
+    }
+
+    const saleId = (result as { sale_id: string; payment_id: string }).sale_id;
+    const paymentId = (result as { sale_id: string; payment_id: string }).payment_id;
+
+    const { data: sale, error: saleFetchError } = await supabase
+      .from('sales')
+      .select('*')
+      .eq('id', saleId)
+      .single();
+
+    const { data: payment, error: paymentFetchError } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('id', paymentId)
+      .single();
+
+    if (saleFetchError || paymentFetchError || !sale || !payment) {
+      // The transaction committed - the sale genuinely exists - this would
+      // only fail on a read-side blip immediately after. Surface a clear
+      // error rather than silently returning incomplete data.
+      return error_response('DATABASE_ERROR', 'Sale was created but could not be reloaded - check Sales for receipt ' + receiptNumber);
+    }
 
     // For cash, return immediately
     if (payment_method === 'cash') {
@@ -301,7 +248,7 @@ export async function handleSaleRoutes(request: Request, env: Env, path: string)
       }, 201);
     }
 
-    // For M-Pesa/PayHero, return pending status
+    // For M-Pesa/PayHero/manual, return pending status
     return success_response({
       sale,
       payment,
@@ -311,8 +258,8 @@ export async function handleSaleRoutes(request: Request, env: Env, path: string)
   }
 
   // GET /api/sales/:id
-  if (path.startsWith('/') && request.method === 'GET') {
-    const id = path.slice(1);
+  if (path.length > 0 && request.method === 'GET') {
+    const id = path;
     const { data, error } = await supabase
       .from('sales')
       .select('*, customers(*), users(full_name, email), terminals(terminal_code, name), payments(*), sale_items(*, products(name, sku, barcode))')

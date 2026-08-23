@@ -72,10 +72,10 @@ export async function handleCategoryRoutes(request: Request, env: Env, path: str
   }
 
   // PUT /api/categories/:id
-  if (path.startsWith('/') && request.method === 'PUT') {
+  if (path.length > 0 && request.method === 'PUT') {
     authorize(user, ['owner', 'manager']);
 
-    const id = path.slice(1);
+    const id = path;
     const body = await request.json() as Partial<Category>;
     const { name, description, status } = body;
 
@@ -110,10 +110,10 @@ export async function handleCategoryRoutes(request: Request, env: Env, path: str
   }
 
   // DELETE /api/categories/:id (archive)
-  if (path.startsWith('/') && request.method === 'DELETE') {
+  if (path.length > 0 && request.method === 'DELETE') {
     authorize(user, ['owner', 'manager']);
 
-    const id = path.slice(1);
+    const id = path;
     const { data, error } = await supabase
       .from('categories')
       .update({ status: 'archived', updated_at: new Date().toISOString() })

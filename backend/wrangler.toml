@@ -3,6 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2024-08-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Static assets - modern Workers Assets binding. Cloudflare serves anything
+# under ../frontend directly (including /sw.js, /css/*, /js/*); only requests
+# that don't match a file fall through to the Worker's fetch handler below.
+[assets]
+directory = "../frontend"
+binding = "ASSETS"
+
 # Environment variables (set via wrangler secret put or dashboard)
 # SUPABASE_URL
 # SUPABASE_ANON_KEY
@@ -11,11 +18,11 @@ compatibility_flags = ["nodejs_compat"]
 # MPESA_CONSUMER_SECRET
 # MPESA_PASSKEY
 # MPESA_SHORTCODE
-# MPESA_CALLBACK_URL
-# PAYHERO_API_KEY
-# PAYHERO_API_URL
-# PAYHERO_CALLBACK_URL
-
-# Static assets
-[site]
-bucket = "../frontend"
+# MPESA_CALLBACK_URL          -> https://<your-worker>/api/webhooks/mpesa/<MPESA_WEBHOOK_SECRET>
+# MPESA_WEBHOOK_SECRET        -> random string, e.g. `openssl rand -hex 24`
+# PAYHERO_API_KEY             -> the "Basic <token>" string from the PayHero dashboard
+# PAYHERO_API_URL             -> optional, defaults to https://backend.payhero.co.ke/api/v2
+# PAYHERO_CHANNEL_ID          -> required - your till/paybill's Payment Channel ID in PayHero
+# PAYHERO_PROVIDER            -> optional, defaults to "m-pesa"
+# PAYHERO_CALLBACK_URL        -> https://<your-worker>/api/webhooks/payhero/<PAYHERO_WEBHOOK_SECRET>
+# PAYHERO_WEBHOOK_SECRET      -> random string, e.g. `openssl rand -hex 24`

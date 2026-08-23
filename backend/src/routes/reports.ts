@@ -74,12 +74,14 @@ export async function handleReportRoutes(request: Request, env: Env, path: strin
     const cashTotal = payments?.filter(p => p.method === 'cash').reduce((sum, p) => sum + p.amount, 0) || 0;
     const mpesaTotal = payments?.filter(p => p.method === 'mpesa').reduce((sum, p) => sum + p.amount, 0) || 0;
     const payheroTotal = payments?.filter(p => p.method === 'payhero').reduce((sum, p) => sum + p.amount, 0) || 0;
+    const manualTotal = payments?.filter(p => p.method === 'manual').reduce((sum, p) => sum + p.amount, 0) || 0;
 
     return success_response({
       cash: cashTotal,
       mpesa: mpesaTotal,
       payhero: payheroTotal,
-      total: cashTotal + mpesaTotal + payheroTotal
+      manual: manualTotal,
+      total: cashTotal + mpesaTotal + payheroTotal + manualTotal
     });
   }
 

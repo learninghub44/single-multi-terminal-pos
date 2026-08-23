@@ -79,6 +79,13 @@ const DashboardPage = {
                   </div>
                   <div class="dash-payment-value" id="stat-payhero">—</div>
                 </div>
+                <div class="dash-payment-row">
+                  <div class="dash-payment-label">Till (Manual)</div>
+                  <div class="dash-payment-bar-track">
+                    <div class="dash-payment-bar" id="bar-manual" style="width:0%"></div>
+                  </div>
+                  <div class="dash-payment-value" id="stat-manual">—</div>
+                </div>
               </div>
             </div>
 
@@ -235,13 +242,15 @@ const DashboardPage = {
       const paymentRes = await Api.get(API.REPORTS.PAYMENT_METHODS, paymentParams);
       if (paymentRes.success) {
         const d = paymentRes.data;
-        const max = Math.max(d.cash, d.mpesa, d.payhero, 1);
+        const max = Math.max(d.cash, d.mpesa, d.payhero, d.manual || 0, 1);
         document.getElementById('stat-cash').textContent = Utils.formatCurrency(d.cash);
         document.getElementById('stat-mpesa').textContent = Utils.formatCurrency(d.mpesa);
         document.getElementById('stat-payhero').textContent = Utils.formatCurrency(d.payhero);
+        document.getElementById('stat-manual').textContent = Utils.formatCurrency(d.manual || 0);
         document.getElementById('bar-cash').style.width = `${(d.cash / max) * 100}%`;
         document.getElementById('bar-mpesa').style.width = `${(d.mpesa / max) * 100}%`;
         document.getElementById('bar-payhero').style.width = `${(d.payhero / max) * 100}%`;
+        document.getElementById('bar-manual').style.width = `${((d.manual || 0) / max) * 100}%`;
       }
 
       // Load profit

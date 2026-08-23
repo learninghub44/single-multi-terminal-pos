@@ -103,10 +103,10 @@ export async function handleUserRoutes(request: Request, env: Env, path: string)
   }
 
   // PUT /api/users/:id
-  if (path.startsWith('/') && request.method === 'PUT') {
+  if (path.length > 0 && request.method === 'PUT') {
     authorize(user, ['owner']);
 
-    const id = path.slice(1);
+    const id = path;
     const body = await request.json() as Partial<User> & { password?: string };
     const { full_name, role, password } = body;
 
@@ -161,10 +161,10 @@ export async function handleUserRoutes(request: Request, env: Env, path: string)
   }
 
   // DELETE /api/users/:id
-  if (path.startsWith('/') && request.method === 'DELETE') {
+  if (path.length > 0 && request.method === 'DELETE') {
     authorize(user, ['owner']);
 
-    const id = path.slice(1);
+    const id = path;
 
     // Prevent self-deletion
     if (id === user.id) {

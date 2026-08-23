@@ -1,5 +1,5 @@
 import { Env, Product, ApiResponse } from '../types';
-import { authenticate, authorize, success_response, error_response, validatePagination, validateSearch } from '../middleware/auth';
+import { authenticate, authorize, success_response, error_response } from '../middleware/auth';
 import { getSupabaseService } from '../services/supabase';
 
 export async function handleProductRoutes(request: Request, env: Env, path: string): Promise<Response> {
@@ -128,9 +128,10 @@ export async function handleProductRoutes(request: Request, env: Env, path: stri
     return success_response(data, 201);
   }
 
-  // GET /api/products/:id
-  if (path.startsWith('/') && request.method === 'GET') {
-    const id = path.slice(1);
+  // GET /api/products/:id (path IS the id here - no leading slash, since
+  // apiPath.slice(9) in index.ts already consumed the full "products/" prefix)
+  if (path.length > 0 && request.method === 'GET') {
+    const id = path;
     const { data, error } = await supabase
       .from('products')
       .select('*, categories(name)')
@@ -145,10 +146,10 @@ export async function handleProductRoutes(request: Request, env: Env, path: stri
   }
 
   // PUT /api/products/:id
-  if (path.startsWith('/') && request.method === 'PUT') {
+  if (path.length > 0 && request.method === 'PUT') {
     authorize(user, ['owner', 'manager']);
 
-    const id = path.slice(1);
+    const id = path;
     const body = await request.json() as Partial<Product>;
     const { name, sku, barcode, category_id, buying_price, selling_price, stock_quantity, low_stock_threshold, unit, status, description } = body;
 
@@ -230,10 +231,10 @@ export async function handleProductRoutes(request: Request, env: Env, path: stri
   }
 
   // DELETE /api/products/:id (archive)
-  if (path.startsWith('/') && request.method === 'DELETE') {
+  if (path.length > 0 && request.method === 'DELETE') {
     authorize(user, ['owner', 'manager']);
 
-    const id = path.slice(1);
+    const id = path;
     const { data, error } = await supabase
       .from('products')
       .update({ status: 'archived', updated_at: new Date().toISOString() })

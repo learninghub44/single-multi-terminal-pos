@@ -157,17 +157,24 @@ export class MpesaPaymentService {
   }
 
   async checkPaymentStatus(checkoutRequestId: string): Promise<{
-    status: 'PAID' | 'FAILED' | 'CANCELLED' | null;
+    status: 'PAID' | 'FAILED' | 'CANCELLED' | 'PENDING' | null;
     amount?: number;
     transactionId?: string;
   } | null> {
+    if (!checkoutRequestId) return null;
+
     try {
       const accessToken = await this.getAccessToken();
       const password = this.generatePassword();
       const timestamp = new Date().toISOString().replace(/[-T:\.Z]/g, '').slice(0, 14);
 
+      // NOTE: the previous implementation called /mpesa/transactionstatus/v1/query
+      // with a fake "SecurityCredential" (that endpoint needs an RSA-encrypted
+      // credential signed with Safaricom's public cert, which this app never had).
+      // The correct way to poll an STK push you just initiated is the STK Push
+      // Query endpoint, which reuses the same Password/Timestamp as the push itself.
       const response = await fetch(
-        `${this.baseUrl}/mpesa/transactionstatus/v1/query`,
+        `${this.baseUrl}/mpesa/stkpushquery/v1/query`,
         {
           method: 'POST',
           headers: {
@@ -175,34 +182,41 @@ export class MpesaPaymentService {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            Initiator: 'pos',
-            SecurityCredential: password,
-            CommandID: 'TransactionStatusQuery',
-            TransactionID: checkoutRequestId,
-            OriginatorConversationID: checkoutRequestId,
-            ConversationID: checkoutRequestId,
-            BusinessShortCode: this.config.shortcode
+            BusinessShortCode: this.config.shortcode,
+            Password: password,
+            Timestamp: timestamp,
+            CheckoutRequestID: checkoutRequestId
           })
         }
       );
 
       const result = await response.json() as {
         ResponseCode?: string;
+        ResultCode?: string | number;
         ResultDesc?: string;
+        errorCode?: string;
       };
 
-      if (result.ResponseCode === '0') {
-        const desc = result.ResultDesc || '';
-        if (desc.includes('completed successfully')) {
-          return { status: 'PAID' };
-        }
-        if (desc.includes('cancelled')) {
-          return { status: 'CANCELLED' };
-        }
+      // While the customer hasn't responded to the prompt yet, Safaricom
+      // returns an error (e.g. errorCode 500.001.1001 "being processed")
+      // rather than a normal ResultCode - treat that as still pending.
+      if (result.errorCode) {
+        return { status: 'PENDING' };
+      }
+
+      const resultCode = result.ResultCode !== undefined ? String(result.ResultCode) : undefined;
+
+      if (resultCode === '0') {
+        return { status: 'PAID' };
+      }
+      if (resultCode === '1032') {
+        return { status: 'CANCELLED' };
+      }
+      if (resultCode !== undefined) {
         return { status: 'FAILED' };
       }
 
-      return null;
+      return { status: 'PENDING' };
     } catch (error) {
       console.error('M-Pesa status check error:', error);
       return null;
