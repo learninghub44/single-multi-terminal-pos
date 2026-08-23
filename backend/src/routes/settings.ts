@@ -4,7 +4,14 @@ import { getSupabaseService } from '../services/supabase';
 
 export async function handleSettingsRoutes(request: Request, env: Env, path: string): Promise<Response> {
   const user = await authenticate(request, env);
-  authorize(user, ['owner']);
+  // GET is readable by any authenticated role (cashiers need to see the
+  // till/paybill number at checkout to tell customers) - only PUT (editing
+  // business settings) stays owner-only. Previously the whole route was
+  // locked to owner, which meant cashiers couldn't even read the till
+  // number the manual-payment checkout screen is supposed to show them.
+  if (request.method !== 'GET') {
+    authorize(user, ['owner']);
+  }
   const supabase = getSupabaseService(env);
 
   // GET /api/settings
@@ -30,7 +37,11 @@ export async function handleSettingsRoutes(request: Request, env: Env, path: str
         currency: 'KES',
         tax_rate: 0,
         low_stock_default: 5,
-        receipt_size: '80mm'
+        receipt_size: '80mm',
+        till_number: null,
+        paybill_number: null,
+        paybill_account_name: null,
+        manual_payment_instructions: null
       });
     }
 
@@ -61,6 +72,10 @@ export async function handleSettingsRoutes(request: Request, env: Env, path: str
     if (body.tax_rate !== undefined) updateData.tax_rate = body.tax_rate;
     if (body.low_stock_default !== undefined) updateData.low_stock_default = body.low_stock_default;
     if (body.receipt_size !== undefined) updateData.receipt_size = body.receipt_size;
+    if (body.till_number !== undefined) updateData.till_number = body.till_number;
+    if (body.paybill_number !== undefined) updateData.paybill_number = body.paybill_number;
+    if (body.paybill_account_name !== undefined) updateData.paybill_account_name = body.paybill_account_name;
+    if (body.manual_payment_instructions !== undefined) updateData.manual_payment_instructions = body.manual_payment_instructions;
 
     updateData.updated_at = new Date().toISOString();
 

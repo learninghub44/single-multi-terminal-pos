@@ -80,6 +80,16 @@ export async function handleReceiptRoutes(request: Request, env: Env, path: stri
   return error_response('NOT_FOUND', 'Endpoint not found', 404);
 }
 
+function escapeHtml(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function generateReceiptHTML(sale: Record<string, unknown>, settings: Record<string, unknown> | null): string {
   const businessName = (settings as { business_name?: string })?.business_name || 'POS Store';
   const phone = (settings as { phone?: string })?.phone || '';
@@ -87,6 +97,9 @@ function generateReceiptHTML(sale: Record<string, unknown>, settings: Record<str
   const receiptFooter = (settings as { receipt_footer?: string })?.receipt_footer || 'Thank you for shopping with us!';
   const receiptSize = (settings as { receipt_size?: string })?.receipt_size || '80mm';
   const width = receiptSize === '58mm' ? '58mm' : '80mm';
+  const tillNumber = (settings as { till_number?: string })?.till_number || '';
+  const paybillNumber = (settings as { paybill_number?: string })?.paybill_number || '';
+  const paybillAccount = (settings as { paybill_account_name?: string })?.paybill_account_name || '';
 
   const items = (sale.sale_items as Array<{
     product_name_snapshot: string;
@@ -165,19 +178,19 @@ function generateReceiptHTML(sale: Record<string, unknown>, settings: Record<str
 </head>
 <body>
   <div class="center">
-    <div class="bold" style="font-size: 14px;">${businessName}</div>
-    ${phone ? `<div>${phone}</div>` : ''}
-    ${address ? `<div>${address}</div>` : ''}
+    <div class="bold" style="font-size: 14px;">${escapeHtml(businessName)}</div>
+    ${phone ? `<div>${escapeHtml(phone)}</div>` : ''}
+    ${address ? `<div>${escapeHtml(address)}</div>` : ''}
   </div>
 
   <div class="line"></div>
 
   <div>
-    <div class="bold">RECEIPT ${sale.receipt_number}</div>
+    <div class="bold">RECEIPT ${escapeHtml(sale.receipt_number)}</div>
     <div>Date: ${date}</div>
-    ${terminal?.terminal_code ? `<div>Terminal: ${terminal.terminal_code}</div>` : ''}
-    ${cashier?.full_name ? `<div>Cashier: ${cashier.full_name}</div>` : ''}
-    ${customer?.name ? `<div>Customer: ${customer.name}</div>` : ''}
+    ${terminal?.terminal_code ? `<div>Terminal: ${escapeHtml(terminal.terminal_code)}</div>` : ''}
+    ${cashier?.full_name ? `<div>Cashier: ${escapeHtml(cashier.full_name)}</div>` : ''}
+    ${customer?.name ? `<div>Customer: ${escapeHtml(customer.name)}</div>` : ''}
   </div>
 
   <div class="line"></div>
@@ -190,7 +203,7 @@ function generateReceiptHTML(sale: Record<string, unknown>, settings: Record<str
     </div>
     ${items.map(item => `
     <div class="item">
-      <span class="item-name">${item.product_name_snapshot}</span>
+      <span class="item-name">${escapeHtml(item.product_name_snapshot)}</span>
       <span class="item-qty">${item.quantity}</span>
       <span class="item-price">${formatCurrency(item.subtotal)}</span>
     </div>
@@ -225,14 +238,22 @@ function generateReceiptHTML(sale: Record<string, unknown>, settings: Record<str
   <div class="line"></div>
 
   <div>
-    <div class="bold">PAYMENT: ${payment?.method?.toUpperCase()}</div>
-    ${payment?.provider_reference ? `<div>Reference: ${payment.provider_reference}</div>` : ''}
+    <div class="bold">PAYMENT: ${escapeHtml(payment?.method?.toUpperCase())}</div>
+    ${payment?.method === 'manual' ? `
+      ${tillNumber ? `<div>Till Number: ${escapeHtml(tillNumber)}</div>` : ''}
+      ${paybillNumber ? `<div>Paybill Number: ${escapeHtml(paybillNumber)}</div>` : ''}
+      ${paybillAccount ? `<div>Account: ${escapeHtml(paybillAccount)}</div>` : ''}
+      ${payment?.reference && payment.reference !== tillNumber && payment.reference !== paybillAccount ? `<div>Paid to: ${escapeHtml(payment.reference)}</div>` : ''}
+      ${payment?.provider_reference ? `<div>Confirmation Code: ${escapeHtml(payment.provider_reference)}</div>` : ''}
+    ` : `
+      ${payment?.provider_reference ? `<div>Reference: ${escapeHtml(payment.provider_reference)}</div>` : ''}
+    `}
   </div>
 
   <div class="line"></div>
 
   <div class="center footer">
-    <div>${receiptFooter}</div>
+    <div>${escapeHtml(receiptFooter)}</div>
     <div style="margin-top: 2mm;">
       <div class="line" style="width: 40mm; margin: 1mm auto;"></div>
     </div>

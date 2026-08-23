@@ -13,6 +13,13 @@
 --   5. Fixes a lost-update race in manual stock adjustments (adjust_stock_atomically).
 --   6. Fixes the low-stock report, which was comparing a column against a
 --      literal string instead of another column (get_low_stock_products).
+--   7. Adds till/paybill fields to business_settings so shops without API
+--      payment integration configure their number once instead of the
+--      cashier remembering/typing it every sale.
+--
+-- This file is safe to re-run - every statement uses IF NOT EXISTS / CREATE
+-- OR REPLACE, so running it again (e.g. after section 7 was added) only
+-- applies whatever's new.
 
 -- 1. Allow 'manual' as a payment method/provider
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_method_check;
@@ -100,3 +107,11 @@ RETURNS SETOF products AS $$
     AND stock_quantity <= low_stock_threshold
   ORDER BY stock_quantity ASC;
 $$ LANGUAGE sql STABLE;
+
+-- 7. Manual payment details, configured once in Settings instead of the
+-- cashier having to remember/type the till or paybill number every sale.
+-- Shown automatically on the manual-checkout screen and on receipts.
+ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS till_number TEXT;
+ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS paybill_number TEXT;
+ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS paybill_account_name TEXT;
+ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS manual_payment_instructions TEXT;

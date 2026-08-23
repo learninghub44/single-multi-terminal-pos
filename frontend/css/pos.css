@@ -372,6 +372,26 @@
   line-height: 1.5;
 }
 
+.manual-payment-details {
+  margin-top: var(--space-sm);
+  border-top: 1px dashed var(--border);
+  padding-top: var(--space-sm);
+}
+
+.manual-payment-detail {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.manual-payment-detail span {
+  color: var(--text-secondary);
+}
+
+.manual-payment-detail strong {
+  font-family: 'Courier New', Courier, monospace;
+}
+
 /* Checkout Modal */
 .checkout-summary {
   background-color: var(--table-header-bg);

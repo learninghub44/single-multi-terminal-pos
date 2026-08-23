@@ -70,6 +70,31 @@ const SettingsPage = {
           </div>
 
           <div class="card-header mt-lg">
+            <h3 class="card-title">Manual Payment (Till / Paybill)</h3>
+          </div>
+          <p class="text-sm text-muted mb-md">If you don't have M-Pesa or PayHero API access, fill this in once - it'll show automatically at checkout and on receipts whenever a cashier records a Till payment.</p>
+          <div class="grid grid-cols-2">
+            <div class="form-group">
+              <label for="settings-till-number">Till Number</label>
+              <input type="text" id="settings-till-number" class="form-input" placeholder="e.g. 174379">
+            </div>
+            <div class="form-group">
+              <label for="settings-paybill-number">Paybill Number</label>
+              <input type="text" id="settings-paybill-number" class="form-input" placeholder="e.g. 400200">
+            </div>
+          </div>
+          <div class="grid grid-cols-2">
+            <div class="form-group">
+              <label for="settings-paybill-account">Paybill Account Name/Number</label>
+              <input type="text" id="settings-paybill-account" class="form-input" placeholder="e.g. your shop name or account number">
+            </div>
+            <div class="form-group">
+              <label for="settings-manual-instructions">Other Instructions (optional)</label>
+              <input type="text" id="settings-manual-instructions" class="form-input" placeholder="e.g. bank details, other notes">
+            </div>
+          </div>
+
+          <div class="card-header mt-lg">
             <h3 class="card-title">Inventory Settings</h3>
           </div>
           <div class="grid grid-cols-2">
@@ -120,6 +145,10 @@ const SettingsPage = {
     document.getElementById('settings-receipt-size').value = this.settings.receipt_size || '80mm';
     document.getElementById('settings-tax-rate').value = this.settings.tax_rate || 0;
     document.getElementById('settings-low-stock').value = this.settings.low_stock_default || 5;
+    document.getElementById('settings-till-number').value = this.settings.till_number || '';
+    document.getElementById('settings-paybill-number').value = this.settings.paybill_number || '';
+    document.getElementById('settings-paybill-account').value = this.settings.paybill_account_name || '';
+    document.getElementById('settings-manual-instructions').value = this.settings.manual_payment_instructions || '';
   },
 
   setupEventListeners() {
@@ -141,7 +170,11 @@ const SettingsPage = {
       return_policy: document.getElementById('settings-return-policy').value || null,
       receipt_size: document.getElementById('settings-receipt-size').value,
       tax_rate: parseFloat(document.getElementById('settings-tax-rate').value) || 0,
-      low_stock_default: parseInt(document.getElementById('settings-low-stock').value) || 5
+      low_stock_default: parseInt(document.getElementById('settings-low-stock').value) || 5,
+      till_number: document.getElementById('settings-till-number').value || null,
+      paybill_number: document.getElementById('settings-paybill-number').value || null,
+      paybill_account_name: document.getElementById('settings-paybill-account').value || null,
+      manual_payment_instructions: document.getElementById('settings-manual-instructions').value || null
     };
 
     try {

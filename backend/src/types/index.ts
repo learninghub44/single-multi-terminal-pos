@@ -143,6 +143,10 @@ export interface BusinessSettings {
   tax_rate: number;
   low_stock_default: number;
   receipt_size: '58mm' | '80mm';
+  till_number: string | null;
+  paybill_number: string | null;
+  paybill_account_name: string | null;
+  manual_payment_instructions: string | null;
   created_at: string;
   updated_at: string;
 }

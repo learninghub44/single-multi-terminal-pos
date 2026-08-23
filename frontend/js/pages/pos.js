@@ -190,10 +190,11 @@ const POSPage = {
     }
 
     try {
-      const [productsRes, categoriesRes, customersRes] = await Promise.all([
+      const [productsRes, categoriesRes, customersRes, settingsRes] = await Promise.all([
         Api.get(API.PRODUCTS, { limit: 100, status: 'active' }),
         Api.get(API.CATEGORIES),
-        Api.get(API.CUSTOMERS, { limit: 100 })
+        Api.get(API.CUSTOMERS, { limit: 100 }),
+        Api.get(API.SETTINGS)
       ]);
 
       if (productsRes.success) {
@@ -211,6 +212,10 @@ const POSPage = {
       if (customersRes.success) {
         this.customers = customersRes.data.customers;
         this.renderCustomers();
+      }
+
+      if (settingsRes.success) {
+        this.businessSettings = settingsRes.data;
       }
 
       // Load cash session for this terminal
@@ -983,16 +988,41 @@ const POSPage = {
   },
 
   showManualCheckout(total) {
+    const s = this.businessSettings || {};
+    const hasConfiguredDetails = s.till_number || s.paybill_number || s.manual_payment_instructions;
+
+    // Build the "pay to" block from whatever was configured in Settings
+    // (Settings > Manual Payment) so the cashier never has to remember or
+    // type the till/paybill number from memory.
+    let payToHtml = '';
+    if (s.till_number) {
+      payToHtml += `<div class="manual-payment-detail"><span>Till Number</span><strong>${Utils.escapeHtml(s.till_number)}</strong></div>`;
+    }
+    if (s.paybill_number) {
+      payToHtml += `<div class="manual-payment-detail"><span>Paybill Number</span><strong>${Utils.escapeHtml(s.paybill_number)}</strong></div>`;
+    }
+    if (s.paybill_account_name) {
+      payToHtml += `<div class="manual-payment-detail"><span>Account</span><strong>${Utils.escapeHtml(s.paybill_account_name)}</strong></div>`;
+    }
+    if (s.manual_payment_instructions) {
+      payToHtml += `<div class="manual-payment-detail"><span>Note</span><strong>${Utils.escapeHtml(s.manual_payment_instructions)}</strong></div>`;
+    }
+
     const content = `
       <div class="checkout-summary">
         <div class="checkout-total">${Utils.formatCurrency(total)}</div>
       </div>
       <div class="manual-payment-instructions">
-        <p>Ask the customer to pay <strong>${Utils.formatCurrency(total)}</strong> to your Till/Paybill number, then confirm below once you've seen the M-Pesa message on your phone.</p>
+        ${hasConfiguredDetails
+          ? `<p>Ask the customer to pay <strong>${Utils.formatCurrency(total)}</strong> using the details below, then confirm once you've seen the M-Pesa message on your phone.</p>
+             <div class="manual-payment-details">${payToHtml}</div>`
+          : `<p>Ask the customer to pay <strong>${Utils.formatCurrency(total)}</strong> to your Till/Paybill number, then confirm below once you've seen the M-Pesa message on your phone.</p>
+             <p class="text-sm text-muted">Tip: add your till/paybill number in Settings so it shows here automatically next time.</p>`
+        }
       </div>
       <div class="form-group">
         <label for="manual-till-ref">Till/Paybill Reference (optional)</label>
-        <input type="text" id="manual-till-ref" class="form-input" placeholder="e.g. account name or till number used">
+        <input type="text" id="manual-till-ref" class="form-input" placeholder="e.g. account name or till number used" value="${Utils.escapeHtml(s.paybill_account_name || s.till_number || s.paybill_number || '')}">
       </div>
       <div class="form-group">
         <label for="manual-confirmation-code">M-Pesa Confirmation Code</label>
@@ -1230,6 +1260,7 @@ const POSPage = {
     const terminal = Auth.getTerminal();
     const snapshot = this.lastSaleSnapshot || { items: [], total: 0 };
     const date = new Date().toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' });
+    const businessName = this.businessSettings?.business_name || 'POS Store';
 
     const html = `<!DOCTYPE html>
 <html>
@@ -1250,7 +1281,7 @@ const POSPage = {
 </head>
 <body>
   <div class="center">
-    <div class="bold" style="font-size: 14px;">POS Store</div>
+    <div class="bold" style="font-size: 14px;">${Utils.escapeHtml(businessName)}</div>
   </div>
   <div class="line"></div>
   <div class="offline-tag bold">OFFLINE SALE - PENDING SYNC</div>
