@@ -23,30 +23,45 @@
     <!-- Login Page -->
     <div id="login-page" class="page active">
       <div class="login-container">
-        <div class="login-card">
-          <div class="login-header">
-            <div class="login-eyebrow">DUKAPOS</div>
-            <div class="brand-mark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v15.5a1 1 0 0 1-1.45.9L14 18l-2 1-2-1-2.55 1.4A1 1 0 0 1 6 18.5V3z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="10.5" x2="15" y2="10.5"/><line x1="9" y1="14" x2="12.5" y2="14"/></svg>
+        <div class="login-brand-panel">
+          <div class="login-brand-content">
+            <div class="login-wordmark">
+              <span class="brand-mark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v15.5a1 1 0 0 1-1.45.9L14 18l-2 1-2-1-2.55 1.4A1 1 0 0 1 6 18.5V3z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="10.5" x2="15" y2="10.5"/><line x1="9" y1="14" x2="12.5" y2="14"/></svg>
+              </span>
+              DukaPOS
             </div>
-            <h1>Welcome back</h1>
-            <p>Sign in to open your till</p>
+            <h2>Run your duka from one screen.</h2>
+            <p>Sales, stock, and staff - all in one place, built for how Kenyan shops actually work.</p>
+            <ul class="login-features">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> M-Pesa, PayHero &amp; till payments</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Multi-terminal, works offline</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Real-time stock &amp; sales reports</li>
+            </ul>
           </div>
-          <form id="login-form">
-            <div class="form-group">
-              <label for="email">Email</label>
-              <input type="email" id="email" name="email" required autocomplete="email">
+        </div>
+        <div class="login-form-panel">
+          <div class="login-card">
+            <div class="login-header">
+              <h1>Welcome back</h1>
+              <p>Sign in to open your till</p>
             </div>
-            <div class="form-group">
-              <label for="password">Password</label>
-              <input type="password" id="password" name="password" required autocomplete="current-password">
-            </div>
-            <div id="login-error" class="error-message hidden"></div>
-            <button type="submit" class="btn btn-primary btn-full btn-lg">
-              <span class="btn-text">Sign In</span>
-              <span class="btn-loading hidden">Signing in...</span>
-            </button>
-          </form>
+            <form id="login-form">
+              <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required autocomplete="email">
+              </div>
+              <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+              </div>
+              <div id="login-error" class="error-message hidden"></div>
+              <button type="submit" class="btn btn-primary btn-full btn-lg">
+                <span class="btn-text">Sign In</span>
+                <span class="btn-loading hidden">Signing in...</span>
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -54,34 +69,49 @@
     <!-- First-Run Admin Setup Page -->
     <div id="setup-page" class="page hidden">
       <div class="login-container">
-        <div class="login-card">
-          <div class="login-header">
-            <div class="login-eyebrow">DUKAPOS</div>
-            <div class="brand-mark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v15.5a1 1 0 0 1-1.45.9L14 18l-2 1-2-1-2.55 1.4A1 1 0 0 1 6 18.5V3z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="10.5" x2="15" y2="10.5"/><line x1="9" y1="14" x2="12.5" y2="14"/></svg>
+        <div class="login-brand-panel">
+          <div class="login-brand-content">
+            <div class="login-wordmark">
+              <span class="brand-mark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v15.5a1 1 0 0 1-1.45.9L14 18l-2 1-2-1-2.55 1.4A1 1 0 0 1 6 18.5V3z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="10.5" x2="15" y2="10.5"/><line x1="9" y1="14" x2="12.5" y2="14"/></svg>
+              </span>
+              DukaPOS
             </div>
-            <h1>Set up your shop</h1>
-            <p>Create the admin account to get started</p>
+            <h2>Run your duka from one screen.</h2>
+            <p>Sales, stock, and staff - all in one place, built for how Kenyan shops actually work.</p>
+            <ul class="login-features">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> M-Pesa, PayHero &amp; till payments</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Multi-terminal, works offline</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Real-time stock &amp; sales reports</li>
+            </ul>
           </div>
-          <form id="setup-form">
-            <div class="form-group">
-              <label for="setup-name">Full Name</label>
-              <input type="text" id="setup-name" required autocomplete="name">
+        </div>
+        <div class="login-form-panel">
+          <div class="login-card">
+            <div class="login-header">
+              <h1>Set up your shop</h1>
+              <p>Create the admin account to get started</p>
             </div>
-            <div class="form-group">
-              <label for="setup-email">Email</label>
-              <input type="email" id="setup-email" required autocomplete="email">
-            </div>
-            <div class="form-group">
-              <label for="setup-password">Password</label>
-              <input type="password" id="setup-password" required minlength="6" autocomplete="new-password">
-            </div>
-            <div id="setup-error" class="error-message hidden"></div>
-            <button type="submit" class="btn btn-primary btn-full btn-lg">
-              <span class="btn-text">Create Admin Account</span>
-              <span class="btn-loading hidden">Creating...</span>
-            </button>
-          </form>
+            <form id="setup-form">
+              <div class="form-group">
+                <label for="setup-name">Full Name</label>
+                <input type="text" id="setup-name" required autocomplete="name">
+              </div>
+              <div class="form-group">
+                <label for="setup-email">Email</label>
+                <input type="email" id="setup-email" required autocomplete="email">
+              </div>
+              <div class="form-group">
+                <label for="setup-password">Password</label>
+                <input type="password" id="setup-password" required minlength="6" autocomplete="new-password">
+              </div>
+              <div id="setup-error" class="error-message hidden"></div>
+              <button type="submit" class="btn btn-primary btn-full btn-lg">
+                <span class="btn-text">Create Admin Account</span>
+                <span class="btn-loading hidden">Creating...</span>
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -89,34 +119,49 @@
     <!-- Accept Staff Invite Page -->
     <div id="accept-invite-page" class="page hidden">
       <div class="login-container">
-        <div class="login-card">
-          <div class="login-header">
-            <div class="login-eyebrow">DUKAPOS</div>
-            <div class="brand-mark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v15.5a1 1 0 0 1-1.45.9L14 18l-2 1-2-1-2.55 1.4A1 1 0 0 1 6 18.5V3z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="10.5" x2="15" y2="10.5"/><line x1="9" y1="14" x2="12.5" y2="14"/></svg>
+        <div class="login-brand-panel">
+          <div class="login-brand-content">
+            <div class="login-wordmark">
+              <span class="brand-mark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v15.5a1 1 0 0 1-1.45.9L14 18l-2 1-2-1-2.55 1.4A1 1 0 0 1 6 18.5V3z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="10.5" x2="15" y2="10.5"/><line x1="9" y1="14" x2="12.5" y2="14"/></svg>
+              </span>
+              DukaPOS
             </div>
-            <h1>You're invited</h1>
-            <p id="invite-context">Checking your invite...</p>
+            <h2>Run your duka from one screen.</h2>
+            <p>Sales, stock, and staff - all in one place, built for how Kenyan shops actually work.</p>
+            <ul class="login-features">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> M-Pesa, PayHero &amp; till payments</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Multi-terminal, works offline</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Real-time stock &amp; sales reports</li>
+            </ul>
           </div>
-          <form id="accept-invite-form" class="hidden">
-            <div class="form-group">
-              <label for="invite-name">Full Name</label>
-              <input type="text" id="invite-name" required autocomplete="name">
+        </div>
+        <div class="login-form-panel">
+          <div class="login-card">
+            <div class="login-header">
+              <h1>You're invited</h1>
+              <p id="invite-context">Checking your invite...</p>
             </div>
-            <div class="form-group">
-              <label for="invite-email">Email</label>
-              <input type="email" id="invite-email" required autocomplete="email">
-            </div>
-            <div class="form-group">
-              <label for="invite-password">Password</label>
-              <input type="password" id="invite-password" required minlength="6" autocomplete="new-password">
-            </div>
-            <div id="invite-error" class="error-message hidden"></div>
-            <button type="submit" class="btn btn-primary btn-full btn-lg">
-              <span class="btn-text">Create My Account</span>
-              <span class="btn-loading hidden">Creating...</span>
-            </button>
-          </form>
+            <form id="accept-invite-form" class="hidden">
+              <div class="form-group">
+                <label for="invite-name">Full Name</label>
+                <input type="text" id="invite-name" required autocomplete="name">
+              </div>
+              <div class="form-group">
+                <label for="invite-email">Email</label>
+                <input type="email" id="invite-email" required autocomplete="email">
+              </div>
+              <div class="form-group">
+                <label for="invite-password">Password</label>
+                <input type="password" id="invite-password" required minlength="6" autocomplete="new-password">
+              </div>
+              <div id="invite-error" class="error-message hidden"></div>
+              <button type="submit" class="btn btn-primary btn-full btn-lg">
+                <span class="btn-text">Create My Account</span>
+                <span class="btn-loading hidden">Creating...</span>
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

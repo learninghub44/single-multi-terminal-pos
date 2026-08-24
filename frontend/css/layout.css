@@ -4,44 +4,119 @@
   min-height: 100vh;
 }
 
-/* ─── Login / Setup / Accept-Invite (shared "ticket" treatment) ───
-   Signature: the card reads as a torn receipt - square top, a scalloped
-   perforated edge at the bottom (where a real receipt tears off), printed
-   in the same monospace a receipt printer would use for the eyebrow.
-   Everything else stays quiet and within the app's existing tokens. */
+/* ─── Login / Setup / Accept-Invite ───
+   Split-screen: a branded panel on the left (product name, pitch, feature
+   list) and a clean unboxed form on the right. Collapses to form-only on
+   narrow screens. */
 .login-container {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.login-brand-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: var(--space-3xl);
+  color: #FFFFFF;
+  background: linear-gradient(155deg, #17120F 0%, #2A1811 55%, var(--accent) 145%);
+  overflow: hidden;
+}
+
+.login-brand-panel::before {
+  content: '';
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  right: -160px;
+  bottom: -180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(198, 93, 50, 0.55) 0%, rgba(198, 93, 50, 0) 70%);
+  pointer-events: none;
+}
+
+.login-brand-content {
+  position: relative;
+  max-width: 420px;
+}
+
+.login-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-lg);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-2xl);
+}
+
+.login-wordmark .brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.login-wordmark .brand-mark svg {
+  width: 17px;
+  height: 17px;
+}
+
+.login-brand-content h2 {
+  font-size: 2.25rem;
+  line-height: 1.15;
+  font-weight: var(--font-bold);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-lg);
+}
+
+.login-brand-content > p {
+  font-size: var(--text-base);
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.6;
+  margin-bottom: var(--space-2xl);
+}
+
+.login-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.login-features li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.login-features li svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.login-form-panel {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: var(--space-lg);
-  background-color: var(--bg);
-  background-image: radial-gradient(var(--border) 1px, transparent 1px);
-  background-size: 16px 16px;
-  background-position: center;
+  padding: var(--space-xl);
+  background-color: var(--surface);
 }
 
 .login-card {
   width: 100%;
   max-width: 380px;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-top-left-radius: var(--radius-lg);
-  border-top-right-radius: var(--radius-lg);
-  padding: var(--space-2xl) var(--space-2xl) calc(var(--space-2xl) + 10px);
-  box-shadow: var(--shadow-lg);
-  position: relative;
-  animation: ticket-rise 0.4s var(--ease-out, ease-out) both;
-  /* Scalloped tear-off edge along the bottom - a row of half-circle
-     "punches" cut out of the card, like perforation on a receipt stub. */
-  -webkit-mask-image: radial-gradient(circle at 8px 8px, transparent 8px, black 8.5px);
-  mask-image: radial-gradient(circle at 8px 8px, transparent 8px, black 8.5px);
-  -webkit-mask-size: 16px 16px;
-  mask-size: 16px 16px;
-  -webkit-mask-repeat: repeat-x;
-  mask-repeat: repeat-x;
-  -webkit-mask-position: bottom left;
-  mask-position: bottom left;
+  animation: login-card-in 0.35s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -50,51 +125,63 @@
   }
 }
 
-@keyframes ticket-rise {
-  from { opacity: 0; transform: translateY(6px); }
+@keyframes login-card-in {
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .login-header {
-  text-align: center;
   margin-bottom: var(--space-2xl);
 }
 
-.login-eyebrow {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  color: var(--text-muted);
-  margin-bottom: var(--space-md);
-}
-
-.login-header .brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  background-color: var(--primary);
-  color: var(--primary-text);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--space-lg);
-}
-
-.login-header .brand-mark svg {
-  width: 22px;
-  height: 22px;
-}
-
 .login-header h1 {
-  font-size: var(--text-xl);
+  font-size: 1.75rem;
   font-weight: var(--font-bold);
+  letter-spacing: -0.01em;
   margin-bottom: var(--space-xs);
 }
 
 .login-header p {
   font-size: var(--text-sm);
   color: var(--text-muted);
+}
+
+.login-card .form-group label {
+  color: var(--text-secondary);
+}
+
+.login-card .form-input {
+  height: 46px;
+  padding: 0 var(--space-md);
+  font-size: var(--text-base);
+  border-radius: var(--radius-lg);
+  border-color: var(--border-strong);
+}
+
+.login-card .form-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(198, 93, 50, 0.15);
+}
+
+.login-card .btn-lg {
+  height: 46px;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
+  margin-top: var(--space-sm);
+}
+
+@media (max-width: 860px) {
+  .login-container {
+    grid-template-columns: 1fr;
+  }
+
+  .login-brand-panel {
+    display: none;
+  }
+
+  .login-form-panel {
+    padding: var(--space-lg);
+  }
 }
 
 /* ─── Main App ─── */
