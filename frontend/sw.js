@@ -4,7 +4,7 @@
 // responses - product data, sales, everything from the API goes through
 // IndexedDB via offline.js instead, so there's one clear place that decides
 // what's "current" data versus what's just a queued offline write.
-const CACHE_NAME = 'pos-shell-v1';
+const CACHE_NAME = 'pos-shell-v2';
 
 const APP_SHELL = [
   '/',
@@ -68,20 +68,21 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached || caches.match('/index.html'));
-
-      // Cache-first for instant offline loads, but still refresh the cache
-      // in the background when there is a connection.
-      return cached || network;
-    })
+    // Network-first for the app shell: a device that's online always gets
+    // the latest HTML/CSS/JS (so a redesign like this one shows up on the
+    // very next load instead of waiting on a cache-version bump). Only
+    // when the network is unavailable do we fall back to whatever shell
+    // was last cached, so offline use still works.
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      })
+      .catch(() =>
+        caches.match(event.request).then((cached) => cached || caches.match('/index.html'))
+      )
   );
 });
