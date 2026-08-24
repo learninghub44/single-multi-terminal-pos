@@ -217,26 +217,49 @@ const DashboardPage = {
   },
 
   async loadData() {
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString();
-      const terminal = Auth.getTerminal();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString();
+    const terminal = Auth.getTerminal();
 
-      // Sales params
+    // Each section loads independently so one failing/slow endpoint can't
+    // leave the rest of the dashboard stuck on its spinner forever.
+    await Promise.allSettled([
+      this.loadSalesSummary(todayStr, terminal),
+      this.loadPaymentBreakdown(todayStr, terminal),
+      this.loadProfit(todayStr),
+      this.loadExpenses(todayStr),
+      this.loadRecentTransactions(terminal),
+      Auth.user?.role !== 'cashier' ? this.loadTerminalPerformance(todayStr) : Promise.resolve(),
+      terminal
+        ? this.loadCashSession(terminal.id)
+        : Promise.resolve(document.getElementById('cash-session-info').innerHTML = '<p class="text-sm text-muted">No terminal assigned</p>'),
+      this.loadLowStock(),
+      this.loadTopProducts()
+    ]);
+  },
+
+  async loadSalesSummary(todayStr, terminal) {
+    try {
       const salesParams = { start_date: todayStr };
       if (terminal) salesParams.terminal_id = terminal.id;
-
-      // Load sales
       const salesRes = await Api.get(API.REPORTS.SALES, salesParams);
       if (salesRes.success) {
         const s = salesRes.data.summary;
         document.getElementById('stat-total-sales').textContent = Utils.formatCurrency(s.total_sales);
         document.getElementById('stat-transactions').textContent = s.total_transactions;
         document.getElementById('stat-avg-sale').textContent = Utils.formatCurrency(s.average_sale);
+      } else {
+        this.showLoadError(['stat-total-sales', 'stat-transactions', 'stat-avg-sale']);
       }
+    } catch (error) {
+      console.error('Dashboard sales summary error:', error);
+      this.showLoadError(['stat-total-sales', 'stat-transactions', 'stat-avg-sale']);
+    }
+  },
 
-      // Load payments
+  async loadPaymentBreakdown(todayStr, terminal) {
+    try {
       const paymentParams = { start_date: todayStr };
       if (terminal) paymentParams.terminal_id = terminal.id;
       const paymentRes = await Api.get(API.REPORTS.PAYMENT_METHODS, paymentParams);
@@ -251,9 +274,17 @@ const DashboardPage = {
         document.getElementById('bar-mpesa').style.width = `${(d.mpesa / max) * 100}%`;
         document.getElementById('bar-payhero').style.width = `${(d.payhero / max) * 100}%`;
         document.getElementById('bar-manual').style.width = `${((d.manual || 0) / max) * 100}%`;
+      } else {
+        this.showLoadError(['stat-cash', 'stat-mpesa', 'stat-payhero', 'stat-manual']);
       }
+    } catch (error) {
+      console.error('Dashboard payment breakdown error:', error);
+      this.showLoadError(['stat-cash', 'stat-mpesa', 'stat-payhero', 'stat-manual']);
+    }
+  },
 
-      // Load profit
+  async loadProfit(todayStr) {
+    try {
       const profitRes = await Api.get(API.REPORTS.PROFIT, { start_date: todayStr });
       if (profitRes.success) {
         const p = profitRes.data;
@@ -263,50 +294,69 @@ const DashboardPage = {
         const profitEl = document.getElementById('stat-profit');
         profitEl.classList.toggle('text-success', p.net_profit >= 0);
         profitEl.classList.toggle('text-danger', p.net_profit < 0);
+      } else {
+        this.showLoadError(['stat-revenue', 'stat-cogs', 'stat-profit']);
       }
+    } catch (error) {
+      console.error('Dashboard profit error:', error);
+      this.showLoadError(['stat-revenue', 'stat-cogs', 'stat-profit']);
+    }
+  },
 
-      // Load expenses
+  async loadExpenses(todayStr) {
+    try {
       const expenseRes = await Api.get(API.REPORTS.EXPENSES, { start_date: todayStr });
       if (expenseRes.success) {
         document.getElementById('stat-expenses').textContent = Utils.formatCurrency(expenseRes.data.total);
+      } else {
+        this.showLoadError(['stat-expenses']);
       }
+    } catch (error) {
+      console.error('Dashboard expenses error:', error);
+      this.showLoadError(['stat-expenses']);
+    }
+  },
 
-      // Load items sold from sales detail
+  async loadRecentTransactions(terminal) {
+    try {
       const recentParams = { limit: 5 };
       if (terminal) recentParams.terminal_id = terminal.id;
       const recentRes = await Api.get(API.SALES, recentParams);
       if (recentRes.success) {
         this.renderRecentTransactions(recentRes.data.sales);
-        // Sum items sold
         let itemsSold = 0;
         recentRes.data.sales.forEach(s => { itemsSold += (s.sale_items?.length || 0); });
         document.getElementById('stat-items-sold').textContent = itemsSold;
-      }
-
-      // Terminal breakdown
-      if (Auth.user?.role !== 'cashier') {
-        await this.loadTerminalPerformance(todayStr);
-      }
-
-      // Cash session
-      if (terminal) {
-        await this.loadCashSession(terminal.id);
       } else {
-        document.getElementById('cash-session-info').innerHTML = '<p class="text-sm text-muted">No terminal assigned</p>';
+        document.getElementById('recent-transactions').innerHTML = '<p class="text-sm text-muted">Unable to load transactions</p>';
+        this.showLoadError(['stat-items-sold']);
       }
+    } catch (error) {
+      console.error('Dashboard recent transactions error:', error);
+      document.getElementById('recent-transactions').innerHTML = '<p class="text-sm text-muted">Unable to load transactions</p>';
+      this.showLoadError(['stat-items-sold']);
+    }
+  },
 
-      // Low stock
-      await this.loadLowStock();
-
-      // Top products
+  async loadTopProducts() {
+    try {
       const topRes = await Api.get(API.REPORTS.PRODUCTS);
       if (topRes.success) {
         this.renderTopProducts(topRes.data.products.slice(0, 5));
+      } else {
+        document.getElementById('top-products').innerHTML = '<p class="text-sm text-muted">Unable to load products</p>';
       }
-
     } catch (error) {
-      console.error('Dashboard load error:', error);
+      console.error('Dashboard top products error:', error);
+      document.getElementById('top-products').innerHTML = '<p class="text-sm text-muted">Unable to load products</p>';
     }
+  },
+
+  showLoadError(ids) {
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '—';
+    });
   },
 
   async loadTerminalPerformance(todayStr) {
